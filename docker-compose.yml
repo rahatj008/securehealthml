@@ -1,0 +1,24 @@
+﻿version: "3.9"
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: securhealth
+      POSTGRES_USER: securhealth
+      POSTGRES_PASSWORD: securhealth
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./server/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  ml-service:
+    build:
+      context: ./ml-service
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
+volumes:
+  db_data:
