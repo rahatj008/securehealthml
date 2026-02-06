@@ -36,6 +36,15 @@ function authMiddleware(req, res, next) {
   }
 }
 
+function requireRole(role) {
+  return (req, res, next) => {
+    if (req.user?.role !== role) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    return next();
+  };
+}
+
 async function logAccess({ userId, fileId, action, decision, reason, req }) {
   await query(
     `INSERT INTO access_logs (user_id, file_id, action, decision, reason, ip_address, user_agent)
@@ -67,6 +76,14 @@ function buildFeatures({ user, file, action }) {
       security_level: file?.security_level || "unknown",
     },
   };
+}
+
+async function getUserByEmail(email) {
+  const result = await query(
+    "SELECT id, email, full_name, role, department, clearance FROM users WHERE email = $1",
+    [email]
+  );
+  return result.rows[0];
 }
 
 app.get("/health", (req, res) => {
@@ -154,6 +171,121 @@ app.get("/files", authMiddleware, async (req, res) => {
     res.json({ files: visible });
   } catch (err) {
     res.status(500).json({ error: "Failed to load files" });
+  }
+});
+
+app.get("/user/files", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const owned = await query(
+      "SELECT * FROM files WHERE owner_id = $1 ORDER BY created_at DESC",
+      [userId]
+    );
+    const sharedWithMe = await query(
+      `SELECT files.*
+       FROM shares
+       JOIN files ON files.id = shares.file_id
+       WHERE shares.recipient_id = $1
+       ORDER BY shares.created_at DESC`,
+      [userId]
+    );
+    const sharedByMe = await query(
+      `SELECT files.*, shares.recipient_id, users.email AS recipient_email
+       FROM shares
+       JOIN files ON files.id = shares.file_id
+       LEFT JOIN users ON users.id = shares.recipient_id
+       WHERE shares.owner_id = $1
+       ORDER BY shares.created_at DESC`,
+      [userId]
+    );
+
+    res.json({
+      owned: owned.rows,
+      sharedWithMe: sharedWithMe.rows,
+      sharedByMe: sharedByMe.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load user files" });
+  }
+});
+
+app.post("/shares", authMiddleware, async (req, res) => {
+  try {
+    const user = req.user;
+    const { fileId, recipientEmail, permission } = req.body;
+    if (!fileId || !recipientEmail) {
+      return res.status(400).json({ error: "fileId and recipientEmail required" });
+    }
+
+    const fileResult = await query("SELECT * FROM files WHERE id = $1", [fileId]);
+    const file = fileResult.rows[0];
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+    if (user.role !== "admin" && file.owner_id !== user.sub) {
+      return res.status(403).json({ error: "Only owner or admin can share" });
+    }
+
+    const recipient = await getUserByEmail(recipientEmail);
+    if (!recipient) {
+      return res.status(404).json({ error: "Recipient not found" });
+    }
+
+    const shareResult = await query(
+      `INSERT INTO shares (file_id, owner_id, recipient_id, permission)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [fileId, file.owner_id, recipient.id, permission || "read"]
+    );
+
+    await logAccess({
+      userId: user.sub,
+      fileId,
+      action: "share",
+      decision: "allowed",
+      reason: `Shared with ${recipient.email}`,
+      req,
+    });
+
+    res.json({ share: shareResult.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Share failed" });
+  }
+});
+
+app.get("/shares/incoming", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const result = await query(
+      `SELECT shares.*, files.filename, files.security_level, users.email AS owner_email
+       FROM shares
+       JOIN files ON files.id = shares.file_id
+       LEFT JOIN users ON users.id = shares.owner_id
+       WHERE shares.recipient_id = $1
+       ORDER BY shares.created_at DESC`,
+      [userId]
+    );
+    res.json({ shares: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load shares" });
+  }
+});
+
+app.get("/shares/outgoing", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const result = await query(
+      `SELECT shares.*, files.filename, users.email AS recipient_email
+       FROM shares
+       JOIN files ON files.id = shares.file_id
+       LEFT JOIN users ON users.id = shares.recipient_id
+       WHERE shares.owner_id = $1
+       ORDER BY shares.created_at DESC`,
+      [userId]
+    );
+    res.json({ shares: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load shares" });
   }
 });
 
@@ -253,15 +385,23 @@ app.get("/files/download/:id", authMiddleware, async (req, res) => {
 
     const policyCheck = evaluatePolicy(user, file.policy);
     if (!policyCheck.allowed) {
-      await logAccess({
-        userId: user.sub,
-        fileId: file.id,
-        action: "download",
-        decision: "denied",
-        reason: policyCheck.reason,
-        req,
-      });
-      return res.status(403).json({ error: "ABAC policy denied" });
+      const shareCheck = await query(
+        "SELECT 1 FROM shares WHERE file_id = $1 AND recipient_id = $2",
+        [file.id, user.sub]
+      );
+      const isShared = shareCheck.rows.length > 0;
+      const isAdmin = user.role === "admin";
+      if (!isShared && !isAdmin) {
+        await logAccess({
+          userId: user.sub,
+          fileId: file.id,
+          action: "download",
+          decision: "denied",
+          reason: policyCheck.reason,
+          req,
+        });
+        return res.status(403).json({ error: "ABAC policy denied" });
+      }
     }
 
     const features = buildFeatures({ user, file, action: "download" });
@@ -320,6 +460,104 @@ app.get("/audit", authMiddleware, async (req, res) => {
     res.json({ logs: result.rows });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch audit logs" });
+  }
+});
+
+app.get("/admin/files", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT files.*, users.email AS owner_email
+       FROM files
+       LEFT JOIN users ON users.id = files.owner_id
+       ORDER BY files.created_at DESC`
+    );
+    res.json({ files: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load files" });
+  }
+});
+
+app.get("/admin/summary", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const filesCount = await query("SELECT COUNT(*) FROM files");
+    const usersCount = await query("SELECT COUNT(*) FROM users");
+    const anomalyCount = await query("SELECT COUNT(*) FROM anomaly_events");
+    const authDenied = await query(
+      "SELECT COUNT(*) FROM access_logs WHERE action = 'login' AND decision = 'denied'"
+    );
+    res.json({
+      files: Number(filesCount.rows[0].count),
+      users: Number(usersCount.rows[0].count),
+      anomalies: Number(anomalyCount.rows[0].count),
+      authDenied: Number(authDenied.rows[0].count),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load summary" });
+  }
+});
+
+app.get("/admin/logs/audit", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT access_logs.*, users.email, files.filename
+       FROM access_logs
+       LEFT JOIN users ON users.id = access_logs.user_id
+       LEFT JOIN files ON files.id = access_logs.file_id
+       ORDER BY access_logs.created_at DESC
+       LIMIT 100`
+    );
+    res.json({ logs: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch audit logs" });
+  }
+});
+
+app.get("/admin/logs/auth", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT access_logs.*, users.email
+       FROM access_logs
+       LEFT JOIN users ON users.id = access_logs.user_id
+       WHERE access_logs.action = 'login'
+       ORDER BY access_logs.created_at DESC
+       LIMIT 100`
+    );
+    res.json({ logs: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch auth logs" });
+  }
+});
+
+app.get("/admin/logs/anomalies", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT anomaly_events.*, users.email, files.filename
+       FROM anomaly_events
+       LEFT JOIN users ON users.id = anomaly_events.user_id
+       LEFT JOIN files ON files.id = anomaly_events.file_id
+       ORDER BY anomaly_events.created_at DESC
+       LIMIT 100`
+    );
+    res.json({ events: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch anomaly logs" });
+  }
+});
+
+app.get("/admin/logs/transfers", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT access_logs.*, users.email, files.filename
+       FROM access_logs
+       LEFT JOIN users ON users.id = access_logs.user_id
+       LEFT JOIN files ON files.id = access_logs.file_id
+       WHERE access_logs.action IN ('upload', 'download', 'share')
+       ORDER BY access_logs.created_at DESC
+       LIMIT 100`
+    );
+    res.json({ logs: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch transfer logs" });
   }
 });
 
