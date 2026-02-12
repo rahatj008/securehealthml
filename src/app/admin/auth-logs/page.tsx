@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { apiFetch } from "../../lib/api";
 import { useAuthGuard } from "../../lib/auth";
+import { adminNav } from "../../lib/nav";
 
 type AuthLog = {
   id: string;
@@ -35,13 +36,7 @@ export default function AuthLogsPage() {
       userName={user.full_name || user.email}
       userMeta={`Admin • Clearance ${user.clearance}`}
       onLogout={logout}
-      nav={[
-        { label: "Dashboard", href: "/admin/dashboard" },
-        { label: "Audit Logs", href: "/admin/audit-logs" },
-        { label: "Anomaly Logs", href: "/admin/anomaly-logs" },
-        { label: "Auth Logs", href: "/admin/auth-logs" },
-        { label: "File Transfers", href: "/admin/file-transfers" },
-      ]}
+      nav={adminNav}
     >
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-lg font-semibold">Authentication Log</p>

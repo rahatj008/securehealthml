@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { apiFetch } from "../../lib/api";
 import { useAuthGuard } from "../../lib/auth";
+import { userNav } from "../../lib/nav";
 
 type ShareRow = {
   id: string;
@@ -35,11 +36,7 @@ export default function SharedByMePage() {
       userName={user.full_name || user.email}
       userMeta={`${user.role} • Clearance ${user.clearance}`}
       onLogout={logout}
-      nav={[
-        { label: "Dashboard", href: "/user/dashboard" },
-        { label: "Shared With Me", href: "/user/shared-with-me" },
-        { label: "Shared By Me", href: "/user/shared-by-me" },
-      ]}
+      nav={userNav}
     >
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-lg font-semibold">Shared By Me</p>

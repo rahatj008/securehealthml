@@ -1,15 +1,28 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { apiFetch } from "../../lib/api";
 import { useAuthGuard } from "../../lib/auth";
+import { adminNav } from "../../lib/nav";
 
 type Summary = {
   files: number;
   users: number;
   anomalies: number;
   authDenied: number;
+  malware: number;
+};
+
+type Point = {
+  day: string;
+  count: number;
+};
+
+type Analytics = {
+  anomalyDetection: Point[];
+  malwareDetection: Point[];
+  authFailures: Point[];
 };
 
 type FileRow = {
@@ -20,17 +33,53 @@ type FileRow = {
   created_at: string;
 };
 
+function LineChart({ title, data, color }: { title: string; data: Point[]; color: string }) {
+  const max = useMemo(() => Math.max(...data.map((d) => d.count), 1), [data]);
+  const points = useMemo(() => {
+    if (!data.length) return "";
+    return data
+      .map((d, idx) => {
+        const x = (idx / Math.max(data.length - 1, 1)) * 100;
+        const y = 100 - (d.count / max) * 90;
+        return `${x},${y}`;
+      })
+      .join(" ");
+  }, [data, max]);
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-600">{title}</p>
+      <svg viewBox="0 0 100 100" className="mt-4 h-36 w-full">
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" />
+        {data.map((d, idx) => {
+          const x = (idx / Math.max(data.length - 1, 1)) * 100;
+          const y = 100 - (d.count / max) * 90;
+          return <circle key={`${d.day}-${idx}`} cx={x} cy={y} r="1.8" fill={color} />;
+        })}
+      </svg>
+      <div className="mt-2 flex justify-between text-[11px] text-slate-400">
+        <span>{data[0]?.day || "-"}</span>
+        <span>{data[data.length - 1]?.day || "-"}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { token, user, ready, logout } = useAuthGuard("admin");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [files, setFiles] = useState<FileRow[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics>({
+    anomalyDetection: [],
+    malwareDetection: [],
+    authFailures: [],
+  });
 
   useEffect(() => {
     if (!token) return;
     apiFetch("/admin/summary", token).then(setSummary).catch(() => null);
-    apiFetch("/admin/files", token)
-      .then((data) => setFiles(data.files || []))
-      .catch(() => null);
+    apiFetch("/admin/files", token).then((data) => setFiles(data.files || [])).catch(() => null);
+    apiFetch("/admin/analytics", token).then(setAnalytics).catch(() => null);
   }, [token]);
 
   if (!ready || !user) {
@@ -44,34 +93,15 @@ export default function AdminDashboard() {
       userName={user.full_name || user.email}
       userMeta={`Admin • Clearance ${user.clearance}`}
       onLogout={logout}
-      nav={[
-        { label: "Dashboard", href: "/admin/dashboard" },
-        { label: "Audit Logs", href: "/admin/audit-logs" },
-        { label: "Anomaly Logs", href: "/admin/anomaly-logs" },
-        { label: "Auth Logs", href: "/admin/auth-logs" },
-        { label: "File Transfers", href: "/admin/file-transfers" },
-      ]}
+      nav={adminNav}
     >
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-lg font-semibold">Security Status: Elevated Monitoring</p>
-            <p className="text-sm text-slate-500">
-              Full visibility into records, authentication, and threat response signals.
-            </p>
-          </div>
-          <button className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-200">
-            View Live Audit
-          </button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         {[
           { label: "Total Files", value: summary?.files ?? 0 },
-          { label: "Registered Users", value: summary?.users ?? 0 },
-          { label: "Anomalies Detected", value: summary?.anomalies ?? 0 },
-          { label: "Denied Logins", value: summary?.authDenied ?? 0 },
+          { label: "Users", value: summary?.users ?? 0 },
+          { label: "Anomalies", value: summary?.anomalies ?? 0 },
+          { label: "Malware", value: summary?.malware ?? 0 },
+          { label: "Auth Failures", value: summary?.authDenied ?? 0 },
         ].map((card) => (
           <div key={card.label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase text-slate-400">{card.label}</p>
@@ -80,12 +110,16 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-3">
+        <LineChart title="Anomaly Detection" data={analytics.anomalyDetection} color="#1d4ed8" />
+        <LineChart title="Malware Detection" data={analytics.malwareDetection} color="#dc2626" />
+        <LineChart title="Auth Failures" data={analytics.authFailures} color="#f59e0b" />
+      </div>
+
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
-          <p className="text-lg font-semibold">All Records</p>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            Policy + ABE enforced
-          </span>
+          <p className="text-lg font-semibold">Recent Records</p>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Live Data</span>
         </div>
 
         <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
@@ -99,7 +133,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {files.slice(0, 6).map((file) => (
+              {files.slice(0, 8).map((file) => (
                 <tr key={file.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 font-semibold text-slate-700">{file.filename}</td>
                   <td className="px-4 py-3 text-slate-500">{file.owner_email || "Unknown"}</td>
