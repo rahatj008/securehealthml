@@ -15,9 +15,20 @@ export async function apiFetch(
     headers: baseHeaders,
   });
 
-  const data = await res.json().catch(() => ({}));
+  const raw = await res.text();
+  let data: unknown = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = {};
+    }
+  }
   if (!res.ok) {
-    const message = (data as { error?: string })?.error || "Request failed";
+    const message =
+      (data as { error?: string })?.error ||
+      raw ||
+      `Request failed (${res.status})`;
     throw new Error(message);
   }
   return data as any;

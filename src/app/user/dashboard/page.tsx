@@ -22,6 +22,13 @@ type SharedFile = FileRow & {
   recipient_email?: string;
 };
 
+type UploadOptions = {
+  roles: string[];
+  departments: string[];
+  clearances: number[];
+  securityLevels: string[];
+};
+
 export default function UserDashboard() {
   const { token, user, ready, logout } = useAuthGuard("user");
   const [owned, setOwned] = useState<FileRow[]>([]);
@@ -30,10 +37,16 @@ export default function UserDashboard() {
   const [message, setMessage] = useState("");
   const [shareForm, setShareForm] = useState({ fileId: "", recipientEmail: "" });
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+  const [uploadOptions, setUploadOptions] = useState<UploadOptions>({
+    roles: [],
+    departments: [],
+    clearances: [1, 2, 3, 4, 5],
+    securityLevels: ["Restricted", "Confidential", "Highly Sensitive"],
+  });
   const [uploadForm, setUploadForm] = useState({
-    roles: "",
-    departments: "",
-    minClearance: "",
+    role: "",
+    department: "",
+    minClearance: 1,
     securityLevel: "Restricted",
   });
 
@@ -44,10 +57,26 @@ export default function UserDashboard() {
     setSharedByMe(data.sharedByMe || []);
   }
 
+  async function loadUploadOptions() {
+    const data = await apiFetch("/abac/options", token || undefined);
+    const roles = data.roles || [];
+    const departments = data.departments || [];
+    const clearances = data.clearances || [1, 2, 3, 4, 5];
+    const securityLevels = data.securityLevels || ["Restricted", "Confidential", "Highly Sensitive"];
+
+    setUploadOptions({ roles, departments, clearances, securityLevels });
+    setUploadForm({
+      role: user?.role || roles[0] || "",
+      department: user?.department || departments[0] || "",
+      minClearance: Number(user?.clearance || clearances[0] || 1),
+      securityLevel: securityLevels[0] || "Restricted",
+    });
+  }
+
   useEffect(() => {
     if (!token) return;
-    loadFiles().catch((err) => setMessage(err.message));
-  }, [token]);
+    Promise.all([loadFiles(), loadUploadOptions()]).catch((err) => setMessage(err.message));
+  }, [token, user?.role, user?.department, user?.clearance]);
 
   async function handleShare(e: React.FormEvent) {
     e.preventDefault();
@@ -78,9 +107,9 @@ export default function UserDashboard() {
 
     const formData = new FormData();
     formData.append("file", fileToUpload);
-    if (uploadForm.roles) formData.append("roles", uploadForm.roles);
-    if (uploadForm.departments) formData.append("departments", uploadForm.departments);
-    if (uploadForm.minClearance) formData.append("minClearance", uploadForm.minClearance);
+    if (uploadForm.role) formData.append("roles", uploadForm.role);
+    if (uploadForm.department) formData.append("departments", uploadForm.department);
+    formData.append("minClearance", String(uploadForm.minClearance));
     formData.append("securityLevel", uploadForm.securityLevel);
 
     try {
@@ -126,11 +155,63 @@ export default function UserDashboard() {
         <p className="text-lg font-semibold">Upload EHR File</p>
         <form onSubmit={handleUpload} className="mt-4 grid gap-3 md:grid-cols-2">
           <input type="file" className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" onChange={(e) => setFileToUpload(e.target.files?.[0] || null)} />
-          <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Roles allowed (comma-separated)" value={uploadForm.roles} onChange={(e) => setUploadForm({ ...uploadForm, roles: e.target.value })} />
-          <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Departments allowed" value={uploadForm.departments} onChange={(e) => setUploadForm({ ...uploadForm, departments: e.target.value })} />
-          <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Min clearance" value={uploadForm.minClearance} onChange={(e) => setUploadForm({ ...uploadForm, minClearance: e.target.value })} />
-          <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Security level" value={uploadForm.securityLevel} onChange={(e) => setUploadForm({ ...uploadForm, securityLevel: e.target.value })} />
-          <button className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white md:col-span-2">Upload</button>
+
+          <select
+            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm"
+            value={uploadForm.role}
+            onChange={(e) => setUploadForm({ ...uploadForm, role: e.target.value })}
+          >
+            <option value="">Select role</option>
+            {uploadOptions.roles.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm"
+            value={uploadForm.department}
+            onChange={(e) => setUploadForm({ ...uploadForm, department: e.target.value })}
+          >
+            <option value="">Select department</option>
+            {uploadOptions.departments.map((department) => (
+              <option key={department} value={department}>
+                {department}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm"
+            value={uploadForm.minClearance}
+            onChange={(e) => setUploadForm({ ...uploadForm, minClearance: Number(e.target.value) })}
+          >
+            {uploadOptions.clearances.map((clearance) => (
+              <option key={clearance} value={clearance}>
+                Clearance {clearance}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm"
+            value={uploadForm.securityLevel}
+            onChange={(e) => setUploadForm({ ...uploadForm, securityLevel: e.target.value })}
+          >
+            {uploadOptions.securityLevels.map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </select>
+
+          <button
+            className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white md:col-span-2 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!uploadOptions.roles.length || !uploadOptions.departments.length}
+          >
+            Upload
+          </button>
         </form>
       </div>
 
