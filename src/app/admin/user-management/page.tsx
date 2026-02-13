@@ -25,10 +25,25 @@ type UserDraft = {
   password: string;
 };
 
+const DEFAULT_ROLE_OPTIONS = [
+  "admin",
+  "clinician",
+  "radiology",
+  "staff",
+  "er",
+  "pharmacist",
+  "reporting-doctor",
+];
+const DEFAULT_CLEARANCE_OPTIONS = [1, 2, 3, 4, 5];
+
 export default function UserManagementPage() {
   const { token, user, ready, logout } = useAuthGuard("admin");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, UserDraft>>({});
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [roleOptions, setRoleOptions] = useState<string[]>(DEFAULT_ROLE_OPTIONS);
+  const [clearanceOptions, setClearanceOptions] = useState<number[]>(DEFAULT_CLEARANCE_OPTIONS);
+  const [newDepartment, setNewDepartment] = useState("");
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
     email: "",
@@ -54,6 +69,9 @@ export default function UserManagementPage() {
     const data = await apiFetch("/admin/users", token || undefined);
     const list = (data.users || []) as UserRow[];
     setUsers(list);
+    setDepartments(data.departments || []);
+    setRoleOptions(data.roleOptions || DEFAULT_ROLE_OPTIONS);
+    setClearanceOptions(data.clearanceOptions || DEFAULT_CLEARANCE_OPTIONS);
 
     const nextDrafts: Record<string, UserDraft> = {};
     list.forEach((u) => {
@@ -68,6 +86,33 @@ export default function UserManagementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  async function createDepartment(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("");
+    if (!newDepartment.trim()) {
+      setMessage("Department name required.");
+      return;
+    }
+
+    try {
+      const data = await apiFetch("/admin/departments", token || undefined, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newDepartment }),
+      });
+      setDepartments((data.departments || []).map((d: { name?: string } | string) => (typeof d === "string" ? d : d.name || "")).filter(Boolean));
+      if (!form.department && data.departments?.[0]) {
+        const first = typeof data.departments[0] === "string" ? data.departments[0] : data.departments[0].name;
+        setForm((prev) => ({ ...prev, department: first }));
+      }
+      setNewDepartment("");
+      setMessage("Department created.");
+      await loadUsers();
+    } catch (err) {
+      setMessage((err as Error).message);
+    }
+  }
+
   async function createUser(e: React.FormEvent) {
     e.preventDefault();
     setMessage("");
@@ -77,7 +122,14 @@ export default function UserManagementPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      setForm({ email: "", password: "", fullName: "", role: "clinician", department: "general", clearance: 1 });
+      setForm({
+        email: "",
+        password: "",
+        fullName: "",
+        role: roleOptions[0] || "clinician",
+        department: departments[0] || "general",
+        clearance: clearanceOptions[0] || 1,
+      });
       setMessage("User created.");
       await loadUsers();
     } catch (err) {
@@ -134,14 +186,52 @@ export default function UserManagementPage() {
       nav={adminNav}
     >
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-lg font-semibold">Department Management</p>
+        <form onSubmit={createDepartment} className="mt-4 flex gap-3">
+          <input
+            className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm"
+            placeholder="Create department"
+            value={newDepartment}
+            onChange={(e) => setNewDepartment(e.target.value)}
+          />
+          <button className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
+            Add
+          </button>
+        </form>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {departments.map((d) => (
+            <span key={d} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+              {d}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-lg font-semibold">Create User</p>
         <form onSubmit={createUser} className="mt-4 grid gap-3 md:grid-cols-3">
           <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Full name" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
           <input type="password" className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} />
-          <input className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-          <input type="number" className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" placeholder="Clearance" value={form.clearance} onChange={(e) => setForm({ ...form, clearance: Number(e.target.value) })} />
+
+          <select className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+            {roleOptions.map((role) => (
+              <option key={role} value={role}>{role}</option>
+            ))}
+          </select>
+
+          <select className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}>
+            {departments.map((dep) => (
+              <option key={dep} value={dep}>{dep}</option>
+            ))}
+          </select>
+
+          <select className="rounded-2xl border border-slate-200 px-4 py-2 text-sm" value={form.clearance} onChange={(e) => setForm({ ...form, clearance: Number(e.target.value) })}>
+            {clearanceOptions.map((level) => (
+              <option key={level} value={level}>{level}</option>
+            ))}
+          </select>
+
           <button className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white md:col-span-3">Create User</button>
         </form>
       </div>
@@ -149,7 +239,7 @@ export default function UserManagementPage() {
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-lg font-semibold">User Directory (Inline Editable)</p>
         <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-100">
-          <table className="w-full min-w-[920px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-400">
               <tr>
                 <th className="px-4 py-3">Name</th>
@@ -172,13 +262,25 @@ export default function UserManagementPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-500">{u.email}</td>
                     <td className="px-4 py-3">
-                      <input className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={d.role} onChange={(e) => patchDraft(u.id, { role: e.target.value })} />
+                      <select className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={d.role} onChange={(e) => patchDraft(u.id, { role: e.target.value })}>
+                        {roleOptions.map((role) => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-4 py-3">
-                      <input className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={d.department} onChange={(e) => patchDraft(u.id, { department: e.target.value })} />
+                      <select className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={d.department} onChange={(e) => patchDraft(u.id, { department: e.target.value })}>
+                        {departments.map((dep) => (
+                          <option key={dep} value={dep}>{dep}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-4 py-3">
-                      <input type="number" className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={d.clearance} onChange={(e) => patchDraft(u.id, { clearance: Number(e.target.value) })} />
+                      <select className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={d.clearance} onChange={(e) => patchDraft(u.id, { clearance: Number(e.target.value) })}>
+                        {clearanceOptions.map((level) => (
+                          <option key={level} value={level}>{level}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-4 py-3">
                       <button onClick={() => patchDraft(u.id, { is_active: !d.is_active })} className={`rounded-full px-3 py-1 text-xs font-semibold ${d.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
