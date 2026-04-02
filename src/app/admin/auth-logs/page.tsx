@@ -20,7 +20,7 @@ export default function AuthLogsPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch("/admin/logs/auth", token)
+    apiFetch<{ logs?: AuthLog[] }>("/admin/logs/auth", token)
       .then((data) => setLogs(data.logs || []))
       .catch(() => null);
   }, [token]);
@@ -31,10 +31,10 @@ export default function AuthLogsPage() {
 
   return (
     <AppShell
-      title="SecurHealth ML"
-      subtitle="Administrator Security Console"
+      title="Secured Health Records"
+      subtitle="Administrator security console"
       userName={user.full_name || user.email}
-      userMeta={`Admin • Clearance ${user.clearance}`}
+      userMeta={`Admin | Clearance ${user.clearance}`}
       onLogout={logout}
       nav={adminNav}
     >

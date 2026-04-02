@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { apiFetch } from "../../lib/api";
 import { useAuthGuard } from "../../lib/auth";
@@ -16,6 +16,17 @@ type PolicyRow = {
     departments: string[];
     minClearance: number;
   };
+};
+
+type PolicyResponse = {
+  policies?: PolicyRow[];
+  departments?: string[];
+  roleOptions?: string[];
+  clearanceOptions?: number[];
+};
+
+type DepartmentListResponse = {
+  departments?: Array<{ name?: string } | string>;
 };
 
 const DEFAULT_ROLE_OPTIONS = [
@@ -38,17 +49,30 @@ export default function PolicyEditorPage() {
   const [newDepartment, setNewDepartment] = useState("");
   const [message, setMessage] = useState("");
 
-  async function loadPolicies() {
-    const data = await apiFetch("/admin/policies", token || undefined);
+  async function fetchPoliciesData() {
+    return apiFetch<PolicyResponse>("/admin/policies", token || undefined);
+  }
+
+  function applyPolicies(data: PolicyResponse) {
     setRows(data.policies || []);
     setDepartments(data.departments || []);
     setRoleOptions(data.roleOptions || DEFAULT_ROLE_OPTIONS);
     setClearanceOptions(data.clearanceOptions || DEFAULT_CLEARANCE_OPTIONS);
   }
 
+  const syncPolicies = useEffectEvent(async () => {
+    const data = await fetchPoliciesData();
+    applyPolicies(data);
+  });
+
+  async function refreshPolicies() {
+    const data = await fetchPoliciesData();
+    applyPolicies(data);
+  }
+
   useEffect(() => {
     if (!token) return;
-    loadPolicies().catch(() => null);
+    syncPolicies().catch(() => null);
   }, [token]);
 
   async function createDepartment(e: React.FormEvent) {
@@ -60,15 +84,19 @@ export default function PolicyEditorPage() {
     }
 
     try {
-      const data = await apiFetch("/admin/departments", token || undefined, {
+      const data = await apiFetch<DepartmentListResponse>("/admin/departments", token || undefined, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newDepartment }),
       });
-      setDepartments((data.departments || []).map((d: { name?: string } | string) => (typeof d === "string" ? d : d.name || "")).filter(Boolean));
+      setDepartments(
+        (data.departments || [])
+          .map((d: { name?: string } | string) => (typeof d === "string" ? d : d.name || ""))
+          .filter(Boolean)
+      );
       setNewDepartment("");
       setMessage("Department created.");
-      await loadPolicies();
+      await refreshPolicies();
     } catch (err) {
       setMessage((err as Error).message);
     }
@@ -140,10 +168,10 @@ export default function PolicyEditorPage() {
 
   return (
     <AppShell
-      title="SecurHealth ML"
-      subtitle="Administrator Security Console"
+      title="Secured Health Records"
+      subtitle="Administrator security console"
       userName={user.full_name || user.email}
-      userMeta={`Admin • Clearance ${user.clearance}`}
+      userMeta={`Admin | Clearance ${user.clearance}`}
       onLogout={logout}
       nav={adminNav}
     >
@@ -160,7 +188,9 @@ export default function PolicyEditorPage() {
         </form>
         <div className="mt-3 flex flex-wrap gap-2">
           {departments.map((d) => (
-            <span key={d} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{d}</span>
+            <span key={d} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+              {d}
+            </span>
           ))}
         </div>
       </div>
@@ -180,9 +210,14 @@ export default function PolicyEditorPage() {
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <p className="font-semibold text-slate-800">{row.filename}</p>
-                    <p className="text-xs text-slate-500">Owner: {row.owner_email || "Unknown"} • {row.security_level}</p>
+                    <p className="text-xs text-slate-500">
+                      Owner: {row.owner_email || "Unknown"} | {row.security_level}
+                    </p>
                   </div>
-                  <button onClick={() => updatePolicy(row)} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white">
+                  <button
+                    onClick={() => updatePolicy(row)}
+                    className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white"
+                  >
                     Save Policy
                   </button>
                 </div>
@@ -198,7 +233,9 @@ export default function PolicyEditorPage() {
                             key={role}
                             type="button"
                             onClick={() => toggleRole(idx, role)}
-                            className={`rounded-full px-3 py-1 text-xs ${selected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}
+                            className={`rounded-full px-3 py-1 text-xs ${
+                              selected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"
+                            }`}
                           >
                             {role}
                           </button>
@@ -217,7 +254,9 @@ export default function PolicyEditorPage() {
                             key={dep}
                             type="button"
                             onClick={() => toggleDepartment(idx, dep)}
-                            className={`rounded-full px-3 py-1 text-xs ${selected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"}`}
+                            className={`rounded-full px-3 py-1 text-xs ${
+                              selected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"
+                            }`}
                           >
                             {dep}
                           </button>
@@ -241,7 +280,9 @@ export default function PolicyEditorPage() {
                       }}
                     >
                       {clearanceOptions.map((level) => (
-                        <option key={level} value={level}>{level}</option>
+                        <option key={level} value={level}>
+                          {level}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -252,7 +293,9 @@ export default function PolicyEditorPage() {
         )}
       </div>
 
-      {message ? <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">{message}</div> : null}
+      {message ? (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">{message}</div>
+      ) : null}
     </AppShell>
   );
 }

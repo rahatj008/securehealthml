@@ -20,7 +20,7 @@ export default function AnomalyLogsPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch("/admin/logs/anomalies", token)
+    apiFetch<{ events?: SecurityEvent[] }>("/admin/logs/anomalies", token)
       .then((data) => setEvents(data.events || []))
       .catch(() => null);
   }, [token]);
@@ -31,10 +31,10 @@ export default function AnomalyLogsPage() {
 
   return (
     <AppShell
-      title="SecurHealth ML"
-      subtitle="Administrator Security Console"
+      title="Secured Health Records"
+      subtitle="Administrator security console"
       userName={user.full_name || user.email}
-      userMeta={`Admin • Clearance ${user.clearance}`}
+      userMeta={`Admin | Clearance ${user.clearance}`}
       onLogout={logout}
       nav={adminNav}
     >

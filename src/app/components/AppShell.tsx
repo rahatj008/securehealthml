@@ -81,8 +81,8 @@ export default function AppShell({
                 );
               })}
               <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-700">
-                System Secure
-                <span className="mt-1 block text-[11px] text-emerald-600">Last audit: 12m ago</span>
+                ABAC + ML Online
+                <span className="mt-1 block text-[11px] text-emerald-600">One-time shares armed</span>
               </div>
             </aside>
 

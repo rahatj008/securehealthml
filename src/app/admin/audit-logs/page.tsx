@@ -22,7 +22,7 @@ export default function AuditLogsPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch("/admin/logs/audit", token)
+    apiFetch<{ logs?: AuditLog[] }>("/admin/logs/audit", token)
       .then((data) => setLogs(data.logs || []))
       .catch(() => null);
   }, [token]);
@@ -33,10 +33,10 @@ export default function AuditLogsPage() {
 
   return (
     <AppShell
-      title="SecurHealth ML"
-      subtitle="Administrator Security Console"
+      title="Secured Health Records"
+      subtitle="Administrator security console"
       userName={user.full_name || user.email}
-      userMeta={`Admin • Clearance ${user.clearance}`}
+      userMeta={`Admin | Clearance ${user.clearance}`}
       onLogout={logout}
       nav={adminNav}
     >

@@ -9,9 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "aws-sdk": "^2.1693.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.3",
     "next": "16.1.6",
+    "pg": "^8.20.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

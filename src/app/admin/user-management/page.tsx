@@ -25,6 +25,17 @@ type UserDraft = {
   password: string;
 };
 
+type UsersResponse = {
+  users?: UserRow[];
+  departments?: string[];
+  roleOptions?: string[];
+  clearanceOptions?: number[];
+};
+
+type DepartmentListResponse = {
+  departments?: Array<{ name?: string } | string>;
+};
+
 const DEFAULT_ROLE_OPTIONS = [
   "admin",
   "clinician",
@@ -66,7 +77,7 @@ export default function UserManagementPage() {
   }
 
   async function loadUsers() {
-    const data = await apiFetch("/admin/users", token || undefined);
+    const data = await apiFetch<UsersResponse>("/admin/users", token || undefined);
     const list = (data.users || []) as UserRow[];
     setUsers(list);
     setDepartments(data.departments || []);
@@ -95,14 +106,17 @@ export default function UserManagementPage() {
     }
 
     try {
-      const data = await apiFetch("/admin/departments", token || undefined, {
+      const data = await apiFetch<DepartmentListResponse>("/admin/departments", token || undefined, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newDepartment }),
       });
       setDepartments((data.departments || []).map((d: { name?: string } | string) => (typeof d === "string" ? d : d.name || "")).filter(Boolean));
       if (!form.department && data.departments?.[0]) {
-        const first = typeof data.departments[0] === "string" ? data.departments[0] : data.departments[0].name;
+        const first =
+          typeof data.departments[0] === "string"
+            ? data.departments[0]
+            : data.departments[0].name || "";
         setForm((prev) => ({ ...prev, department: first }));
       }
       setNewDepartment("");
@@ -156,16 +170,23 @@ export default function UserManagementPage() {
         clearance: Number(draft.clearance),
         isActive: draft.is_active,
       };
-      if (draft.password.trim()) {
-        payload.password = draft.password.trim();
-      }
-
       await apiFetch(`/admin/users/${id}`, token || undefined, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      setMessage("User updated.");
+
+      if (draft.password.trim()) {
+        await apiFetch(`/admin/users/${id}/reset-password`, token || undefined, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: draft.password.trim() }),
+        });
+        setMessage("User updated and password reset.");
+      } else {
+        setMessage("User updated.");
+      }
+
       await loadUsers();
     } catch (err) {
       setMessage((err as Error).message);
@@ -178,10 +199,10 @@ export default function UserManagementPage() {
 
   return (
     <AppShell
-      title="SecurHealth ML"
-      subtitle="Administrator Security Console"
+      title="Secured Health Records"
+      subtitle="Administrator security console"
       userName={user.full_name || user.email}
-      userMeta={`Admin • Clearance ${user.clearance}`}
+      userMeta={`Admin | Clearance ${user.clearance}`}
       onLogout={logout}
       nav={adminNav}
     >

@@ -21,7 +21,7 @@ export default function FileTransfersPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch("/admin/logs/transfers", token)
+    apiFetch<{ logs?: TransferLog[] }>("/admin/logs/transfers", token)
       .then((data) => setLogs(data.logs || []))
       .catch(() => null);
   }, [token]);
@@ -32,10 +32,10 @@ export default function FileTransfersPage() {
 
   return (
     <AppShell
-      title="SecurHealth ML"
-      subtitle="Administrator Security Console"
+      title="Secured Health Records"
+      subtitle="Administrator security console"
       userName={user.full_name || user.email}
-      userMeta={`Admin • Clearance ${user.clearance}`}
+      userMeta={`Admin | Clearance ${user.clearance}`}
       onLogout={logout}
       nav={adminNav}
     >
