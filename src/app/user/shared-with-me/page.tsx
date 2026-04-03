@@ -73,7 +73,7 @@ export default function SharedWithMePage() {
   return (
     <AppShell
       title="Secured Health Records"
-      subtitle="Clinical workspace with ABAC, S3-backed storage, and ML threat monitoring"
+      subtitle="Clinical workspace with ABAC, secure storage, and ML threat monitoring"
       userName={user.full_name || user.email}
       userMeta={`${user.role} | ${user.department} | Clearance ${user.clearance}`}
       onLogout={logout}

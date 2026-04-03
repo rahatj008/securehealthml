@@ -40,7 +40,7 @@ export default function AnomalyLogsPage() {
     >
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-lg font-semibold">Anomaly Events</p>
-        <p className="text-sm text-slate-500">Behavioral and access anomalies scored by XGBoost.</p>
+        <p className="text-sm text-slate-500">Behavioral and access anomalies scored by the ML security layer.</p>
 
         <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
           <table className="w-full text-left text-sm">

@@ -106,8 +106,8 @@ export default function AdminDashboard() {
             Machine Learning-Enhanced Secure Platform for Electronic Health Record Sharing with Proactive Threat Detection
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-            Attribute-based controls protect each record, while the XGBoost layer evaluates behavior and content in
-            real time to stop anomalous access, malicious uploads, and risky authentication patterns before damage
+            Attribute-based controls protect each record, while the ML security layer evaluates behavior and content
+            in real time to stop anomalous access, malicious uploads, and risky authentication patterns before damage
             spreads.
           </p>
         </div>
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
           <p className="mt-3 text-2xl font-semibold text-emerald-950">Files self-destruct after first shared access.</p>
           <p className="mt-3 text-sm leading-6 text-emerald-900">
             Owners can create only one active share per file. Once the recipient downloads it, the object is erased
-            from AWS S3 and the file is marked destroyed in the platform ledger.
+            from secure storage and the file is marked destroyed in the platform ledger.
           </p>
         </div>
       </div>
@@ -151,7 +151,7 @@ export default function AdminDashboard() {
               "1. User request enters via web app for login, upload, or download.",
               "2. Authentication validates credentials and logs denied attempts.",
               "3. ABAC checks role, department, and clearance against file policy.",
-              "4. XGBoost evaluates behavior and file-content risk in parallel.",
+              "4. The ML service evaluates behavior and file-content risk in parallel.",
               "5. Normal actions proceed; anomalous actions trigger alerts and shutdown.",
               "6. Audit and security events feed the continuous ML improvement loop.",
             ].map((step) => (
@@ -168,8 +168,8 @@ export default function AdminDashboard() {
             {[
               "Next.js frontend with unified /api surface",
               "PostgreSQL for users, files, shares, and security logs",
-              "AWS S3 for encrypted document storage",
-              "XGBoost-based ML service for anomaly and malware scoring",
+              "Configurable secure storage with local and S3 modes",
+              "ML service with PDF scoring, YARA, and ClamAV",
             ].map((item) => (
               <div key={item} className="rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700">
                 {item}

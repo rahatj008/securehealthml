@@ -27,8 +27,46 @@ const DEFAULT_DEPARTMENTS = [
   "security",
 ];
 const SECURITY_LEVEL_OPTIONS = ["Restricted", "Confidential", "Highly Sensitive"];
+const SEED_DEFAULT_USERS = String(process.env.SEED_DEFAULT_USERS || "false").trim().toLowerCase() === "true";
+const DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || "admin@securehealth.local";
+const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || "Admin123!";
+const DEFAULT_CLINICIAN_EMAIL = process.env.DEFAULT_CLINICIAN_EMAIL || "clinician@securehealth.local";
+const DEFAULT_CLINICIAN_PASSWORD = process.env.DEFAULT_CLINICIAN_PASSWORD || "Clinician123!";
+const ALLOWED_UPLOAD_TYPES = [
+  {
+    extensions: [".pdf"],
+    mimeTypes: ["application/pdf"],
+  },
+  {
+    extensions: [".docx"],
+    mimeTypes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  },
+  {
+    extensions: [".png"],
+    mimeTypes: ["image/png"],
+  },
+  {
+    extensions: [".jpg", ".jpeg"],
+    mimeTypes: ["image/jpeg", "image/jpg"],
+  },
+];
 
 let bootstrapPromise;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableBootstrapError(error) {
+  const code = String(error?.code || "").trim().toUpperCase();
+  return [
+    "57P03", // database system is starting up / in recovery mode
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "ENOTFOUND",
+  ].includes(code);
+}
 
 function json(data, init = {}) {
   return Response.json(data, init);
@@ -36,6 +74,22 @@ function json(data, init = {}) {
 
 function normalizeToken(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function getFileExtension(filename) {
+  const normalized = String(filename || "").trim().toLowerCase();
+  const lastDot = normalized.lastIndexOf(".");
+  return lastDot >= 0 ? normalized.slice(lastDot) : "";
+}
+
+function isAllowedUploadFile(file) {
+  const extension = getFileExtension(file?.name);
+  const mimeType = normalizeToken(file?.type);
+  return ALLOWED_UPLOAD_TYPES.some(
+    (allowed) =>
+      allowed.extensions.includes(extension) ||
+      (mimeType && allowed.mimeTypes.includes(mimeType))
+  );
 }
 
 function getRequestIp(request) {
@@ -153,6 +207,7 @@ async function ensureSchema() {
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS consumed_by UUID REFERENCES users(id) ON DELETE SET NULL;
   `);
   await ensureDepartments(DEFAULT_DEPARTMENTS);
+  await ensureDefaultUsers();
 
   await query(`
     INSERT INTO departments (name, is_active)
@@ -165,7 +220,25 @@ async function ensureSchema() {
 
 export async function ensurePlatformReady() {
   if (!bootstrapPromise) {
-    bootstrapPromise = ensureSchema();
+    bootstrapPromise = (async () => {
+      let lastError;
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
+        try {
+          await ensureSchema();
+          return;
+        } catch (error) {
+          lastError = error;
+          if (!isRetryableBootstrapError(error) || attempt === 5) {
+            throw error;
+          }
+          await wait(attempt * 1000);
+        }
+      }
+      throw lastError;
+    })().catch((error) => {
+      bootstrapPromise = undefined;
+      throw error;
+    });
   }
   await bootstrapPromise;
 }
@@ -298,6 +371,41 @@ async function ensureDepartments(names) {
   const unique = [...new Set((names || []).map(normalizeToken).filter(Boolean))];
   for (const department of unique) {
     await ensureDepartment(department);
+  }
+}
+
+async function ensureDefaultUsers() {
+  if (!SEED_DEFAULT_USERS) return;
+
+  const defaultUsers = [
+    {
+      email: DEFAULT_ADMIN_EMAIL,
+      password: DEFAULT_ADMIN_PASSWORD,
+      fullName: "Demo Administrator",
+      role: "admin",
+      department: "security",
+      clearance: 5,
+    },
+    {
+      email: DEFAULT_CLINICIAN_EMAIL,
+      password: DEFAULT_CLINICIAN_PASSWORD,
+      fullName: "Demo Clinician",
+      role: "clinician",
+      department: "general",
+      clearance: 3,
+    },
+  ];
+
+  await ensureDepartments(defaultUsers.map((user) => user.department));
+
+  for (const user of defaultUsers) {
+    const passwordHash = await hashPassword(user.password);
+    await query(
+      `INSERT INTO users (email, password_hash, full_name, role, department, clearance, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+       ON CONFLICT (email) DO NOTHING`,
+      [user.email, passwordHash, user.fullName, user.role, user.department, user.clearance]
+    );
   }
 }
 
@@ -507,6 +615,12 @@ async function handleUpload(request, currentUser) {
     if (!(file instanceof File)) {
       return json({ error: "Missing file" }, { status: 400 });
     }
+    if (!isAllowedUploadFile(file)) {
+      return json(
+        { error: "Only PDF, DOCX, PNG, and JPEG files are supported for scanning." },
+        { status: 400 }
+      );
+    }
 
     const policy = parsePolicy(
       {
@@ -526,7 +640,7 @@ async function handleUpload(request, currentUser) {
       context: "file_upload",
       behavior: buildBehaviorFeatures({ request, user: currentUser, action: "upload" }),
       content: buildContentFeatures({ file, securityLevel }),
-      sample_base64: buffer.slice(0, 65536).toString("base64"),
+      sample_base64: buffer.toString("base64"),
     });
 
     if (mlAssessment.malware) {

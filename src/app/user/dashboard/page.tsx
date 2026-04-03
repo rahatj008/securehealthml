@@ -190,7 +190,7 @@ export default function UserDashboard() {
   return (
     <AppShell
       title="Secured Health Records"
-      subtitle="Clinical workspace with ABAC, S3-backed storage, and ML threat monitoring"
+      subtitle="Clinical workspace with ABAC, secure storage, and ML threat monitoring"
       userName={user.full_name || user.email}
       userMeta={`${user.role} | ${user.department} | Clearance ${user.clearance}`}
       onLogout={logout}
@@ -217,7 +217,7 @@ export default function UserDashboard() {
               "1. Authenticate",
               "2. Evaluate ABAC policy",
               "3. Inspect behavior and content",
-              "4. Allow or block via XGBoost",
+              "4. Allow or block via the ML security layer",
               "5. Self-destruct one-time shares after access",
             ].map((step) => (
               <div key={step} className="rounded-2xl bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600">
@@ -241,6 +241,7 @@ export default function UserDashboard() {
         <form onSubmit={handleUpload} className="mt-4 grid gap-3 md:grid-cols-2">
           <input
             type="file"
+            accept=".pdf,.docx,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg"
             className="rounded-2xl border border-slate-200 px-4 py-2 text-sm"
             onChange={(e) => setFileToUpload(e.target.files?.[0] || null)}
           />
@@ -302,6 +303,9 @@ export default function UserDashboard() {
             {workingFileId === "upload" ? "Scanning and encrypting..." : "Upload Secure Record"}
           </button>
         </form>
+        <p className="mt-3 text-xs text-slate-500">
+          Supported upload types: PDF, DOCX, PNG, and JPEG.
+        </p>
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -349,7 +353,7 @@ export default function UserDashboard() {
             <p className="text-sm text-slate-500">Owned records remain accessible to you unless consumed through a one-time share.</p>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            S3 encrypted storage
+            Secure encrypted storage
           </span>
         </div>
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100">

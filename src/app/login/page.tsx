@@ -57,15 +57,15 @@ export default function LoginPage() {
             Machine Learning-Enhanced Secure Platform for Electronic Health Record Sharing
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
-            Attribute-based access control protects every record, while XGBoost monitors user behavior, authentication
-            risk, and file content for anomalies before access is granted.
+            Attribute-based access control protects every record, while the security layer evaluates authentication
+            risk, file content, and suspicious activity before access is granted.
           </p>
 
           <div className="mt-8 grid gap-3 md:grid-cols-2">
             {[
               "ABAC-enforced decryption policies",
               "Real-time anomaly and malware screening",
-              "AWS S3-backed secure record storage",
+              "Secure record storage with local or S3 deployment options",
               "One-time file sharing with auto-destruction",
             ].map((item) => (
               <div key={item} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-slate-200">

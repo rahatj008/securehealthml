@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type StoredUser = {
@@ -36,30 +36,33 @@ export function clearAuth() {
   localStorage.removeItem("securhealth_user");
 }
 
-function subscribeToAuth(callback: () => void) {
-  if (typeof window === "undefined") {
-    return () => undefined;
-  }
-
-  const handleStorage = () => callback();
-  window.addEventListener("storage", handleStorage);
-  return () => window.removeEventListener("storage", handleStorage);
-}
-
-function getServerAuthSnapshot(): StoredAuth {
-  return null;
-}
-
 export function useAuthGuard(role?: "admin" | "user") {
   const router = useRouter();
-  const auth = useSyncExternalStore(subscribeToAuth, getStoredAuth, getServerAuthSnapshot);
+  const [auth, setAuth] = useState<StoredAuth>(null);
+  const [hydrated, setHydrated] = useState(false);
   const isAdmin = auth?.user.role === "admin";
   const ready = Boolean(
-    auth &&
+    hydrated &&
+      auth &&
       (role === undefined || (role === "admin" ? isAdmin : !isAdmin))
   );
 
   useEffect(() => {
+    const syncAuth = () => {
+      setAuth(getStoredAuth());
+      setHydrated(true);
+    };
+
+    syncAuth();
+    window.addEventListener("storage", syncAuth);
+    return () => window.removeEventListener("storage", syncAuth);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
     if (!auth) {
       router.replace("/login");
       return;
@@ -73,7 +76,7 @@ export function useAuthGuard(role?: "admin" | "user") {
     if (role === "user" && isAdmin) {
       router.replace("/admin/dashboard");
     }
-  }, [auth, isAdmin, role, router]);
+  }, [auth, hydrated, isAdmin, role, router]);
 
   function logout() {
     clearAuth();

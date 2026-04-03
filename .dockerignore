@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+__pycache__
+*.pyc
+.venv
+ai_model_training/vendor
+ai_model_training/*.parquet
+ai_model_training/*.zip
+python_deps_test
+ml-service/data
+*.crdownload
+postgresql-*.exe
