@@ -67,6 +67,67 @@ Notes:
 
 More local-stack details are in [LOCAL_STACK.md](./LOCAL_STACK.md).
 
+## Teammate Setup
+
+If you are setting this up on a fresh machine, use this order:
+
+1. Install Docker Desktop and Node.js.
+2. From the repo root, create the env files.
+3. Install Node dependencies with `npm install`.
+4. Choose either the development workflow or the full local stack.
+
+Windows env setup:
+
+```bash
+copy .env.example .env
+copy .env.local.example .env.local
+```
+
+Mac/Linux env setup:
+
+```bash
+cp .env.example .env
+cp .env.local.example .env.local
+```
+
+### Development Mode
+
+Use this for day-to-day coding with hot reload.
+
+```bash
+npm install
+npm run dev:services
+npm run dev:app
+```
+
+Open:
+
+- `http://localhost:3001`
+
+Dev notes:
+
+- PostgreSQL runs on `localhost:5433`
+- ML service runs on `http://localhost:8001`
+- ClamAV runs in Docker
+- local filesystem storage is used, so AWS credentials are not required
+
+### Full Local Stack
+
+Use this when you want to run the app more like a deployment.
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+- `http://localhost:3000`
+
+### Demo Credentials
+
+- Admin: `admin@securehealth.local` / `Admin123!`
+- Clinician: `clinician@securehealth.local` / `Clinician123!`
+
 ## Development Workflow
 
 For normal development, use the fast workflow instead of rebuilding the app container on every change.
