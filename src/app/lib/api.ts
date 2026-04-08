@@ -1,5 +1,21 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
+export class ApiError<T = unknown> extends Error {
+  status: number;
+  data: T | undefined;
+
+  constructor(message: string, status: number, data?: T) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+  }
+}
+
+export function isApiError<T = unknown>(error: unknown): error is ApiError<T> {
+  return error instanceof ApiError;
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   token?: string,
@@ -12,16 +28,17 @@ export async function apiFetch<T = unknown>(
 
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
+    cache: options.cache ?? "no-store",
     headers: baseHeaders,
   });
 
   const raw = await res.text();
-  let data: unknown = {};
+  let data: unknown;
   if (raw) {
     try {
       data = JSON.parse(raw);
     } catch {
-      data = {};
+      data = undefined;
     }
   }
   if (!res.ok) {
@@ -29,7 +46,7 @@ export async function apiFetch<T = unknown>(
       (data as { error?: string })?.error ||
       raw ||
       `Request failed (${res.status})`;
-    throw new Error(message);
+    throw new ApiError(message, res.status, data);
   }
   return data as T;
 }
@@ -48,15 +65,17 @@ export async function apiDownload(path: string, token?: string) {
   if (!res.ok) {
     const raw = await res.text();
     let message = raw || `Request failed (${res.status})`;
+    let data: unknown;
     try {
       const json = JSON.parse(raw) as { error?: string };
+      data = json;
       if (json.error) {
         message = json.error;
       }
     } catch {
       // Ignore non-JSON responses.
     }
-    throw new Error(message);
+    throw new ApiError(message, res.status, data);
   }
 
   const blob = await res.blob();

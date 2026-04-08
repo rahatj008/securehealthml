@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useState } from "react";
 import AppShell from "../../components/AppShell";
-import { apiDownload, apiFetch } from "../../lib/api";
+import { apiDownload, apiFetch, isApiError } from "../../lib/api";
 import { useAuthGuard } from "../../lib/auth";
 import { userNav } from "../../lib/nav";
 
@@ -50,6 +50,19 @@ type UploadOptionsResponse = {
   securityLevels?: string[];
 };
 
+type UploadAlert = {
+  title: string;
+  reasons: string[];
+  score?: number | null;
+};
+
+type UploadErrorPayload = {
+  blockedBy?: string;
+  score?: number;
+  reasons?: string[];
+  error?: string;
+};
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -82,6 +95,7 @@ export default function UserDashboard() {
     minClearance: 1,
     securityLevel: "Restricted",
   });
+  const [uploadAlert, setUploadAlert] = useState<UploadAlert | null>(null);
 
   async function loadFiles() {
     const data = await apiFetch<UserFilesResponse>("/user/files", token || undefined);
@@ -155,6 +169,7 @@ export default function UserDashboard() {
 
     try {
       setWorkingFileId("upload");
+      setUploadAlert(null);
       await apiFetch("/files/upload", token || undefined, {
         method: "POST",
         body: formData,
@@ -163,7 +178,17 @@ export default function UserDashboard() {
       setFileToUpload(null);
       await loadFiles();
     } catch (err) {
-      setMessage((err as Error).message);
+      if (isApiError<UploadErrorPayload>(err) && err.data?.blockedBy === "malware") {
+        setMessage("");
+        setUploadAlert({
+          title: err.message || "Upload blocked by the malware scanner.",
+          score: typeof err.data.score === "number" ? err.data.score : null,
+          reasons: Array.isArray(err.data.reasons) ? err.data.reasons.slice(0, 3) : [],
+        });
+      } else {
+        setUploadAlert(null);
+        setMessage((err as Error).message);
+      }
     } finally {
       setWorkingFileId(null);
     }
@@ -238,6 +263,19 @@ export default function UserDashboard() {
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-lg font-semibold">Upload Protected EHR</p>
+        {uploadAlert ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-800">
+            <p className="font-semibold">{uploadAlert.title}</p>
+            {typeof uploadAlert.score === "number" ? (
+              <p className="mt-1 text-xs uppercase tracking-wide text-rose-700">
+                Detection score: {uploadAlert.score.toFixed(2)}
+              </p>
+            ) : null}
+            {uploadAlert.reasons.length ? (
+              <p className="mt-2 text-sm">Indicators: {uploadAlert.reasons.join(", ")}</p>
+            ) : null}
+          </div>
+        ) : null}
         <form onSubmit={handleUpload} className="mt-4 grid gap-3 md:grid-cols-2">
           <input
             type="file"

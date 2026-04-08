@@ -168,6 +168,9 @@ async function ensureSchema() {
       id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id UUID REFERENCES users(id) ON DELETE SET NULL,
       file_id UUID REFERENCES files(id) ON DELETE SET NULL,
+      filename TEXT,
+      mime_type TEXT,
+      context TEXT,
       score NUMERIC NOT NULL,
       reasons JSONB NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
@@ -205,6 +208,9 @@ async function ensureSchema() {
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP;
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP;
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS consumed_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE malware_events ADD COLUMN IF NOT EXISTS filename TEXT;
+    ALTER TABLE malware_events ADD COLUMN IF NOT EXISTS mime_type TEXT;
+    ALTER TABLE malware_events ADD COLUMN IF NOT EXISTS context TEXT;
   `);
   await ensureDepartments(DEFAULT_DEPARTMENTS);
   await ensureDefaultUsers();
@@ -286,11 +292,12 @@ async function logAccess({ userId, fileId, action, decision, reason, request }) 
   );
 }
 
-async function logMalware({ userId, fileId, score, reasons }) {
+async function logMalware({ userId, fileId, filename, mimeType, context, score, reasons }) {
+  const normalizedReasons = JSON.stringify(Array.isArray(reasons) ? reasons : []);
   await query(
-    `INSERT INTO malware_events (user_id, file_id, score, reasons)
-     VALUES ($1, $2, $3, $4)`,
-    [userId, fileId, score, reasons]
+    `INSERT INTO malware_events (user_id, file_id, filename, mime_type, context, score, reasons)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [userId, fileId, filename || null, mimeType || null, context || null, score, normalizedReasons]
   );
 }
 
@@ -644,11 +651,17 @@ async function handleUpload(request, currentUser) {
     });
 
     if (mlAssessment.malware) {
+      const reasons = Array.isArray(mlAssessment.reasons)
+        ? mlAssessment.reasons.filter(Boolean)
+        : ["Malware signature detected"];
       await logMalware({
         userId: currentUser.sub,
         fileId: null,
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+        context: "file_upload",
         score: mlAssessment.malware_score,
-        reasons: mlAssessment.reasons || ["Malware signature detected"],
+        reasons,
       });
       await logAccess({
         userId: currentUser.sub,
@@ -658,7 +671,15 @@ async function handleUpload(request, currentUser) {
         reason: "Malware detected by ML",
         request,
       });
-      return json({ error: "Malware detected. Upload blocked." }, { status: 403 });
+      return json(
+        {
+          error: "Malware detected. Upload blocked by the security scanner.",
+          blockedBy: "malware",
+          score: mlAssessment.malware_score,
+          reasons,
+        },
+        { status: 403 }
+      );
     }
 
     if (mlAssessment.anomaly) {
@@ -1381,13 +1402,25 @@ async function handleApiRequestInternal(request, path) {
 
     if (method === "GET" && path.length === 3 && segment1 === "logs" && segment2 === "malware") {
       try {
+        const limitParam = Number(new URL(request.url).searchParams.get("limit") || 200);
+        const limit = Number.isFinite(limitParam)
+          ? Math.min(Math.max(Math.trunc(limitParam), 1), 200)
+          : 200;
         const malware = await query(
-          `SELECT malware_events.id, malware_events.created_at, malware_events.score, malware_events.reasons, users.email, files.filename
+          `SELECT malware_events.id,
+                  malware_events.created_at,
+                  malware_events.score,
+                  malware_events.reasons,
+                  malware_events.mime_type,
+                  malware_events.context,
+                  users.email,
+                  COALESCE(files.filename, malware_events.filename) AS filename
            FROM malware_events
            LEFT JOIN users ON users.id = malware_events.user_id
            LEFT JOIN files ON files.id = malware_events.file_id
            ORDER BY malware_events.created_at DESC
-           LIMIT 200`
+           LIMIT $1`,
+          [limit]
         );
         return json({ events: malware.rows });
       } catch {
