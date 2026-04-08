@@ -284,23 +284,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-lg font-semibold">Architecture Highlights</p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {[
-              "Next.js frontend with unified /api surface",
-              "PostgreSQL for users, files, shares, and security logs",
-              "Configurable secure storage with local and S3 modes",
-              "ML service with PDF scoring, YARA, and ClamAV",
-            ].map((item) => (
-              <div key={item} className="rounded-2xl border border-slate-200 px-4 py-4 text-sm font-medium text-slate-700">
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-
+      <div>
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-lg font-semibold">Recent Records</p>

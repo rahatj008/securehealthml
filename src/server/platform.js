@@ -643,12 +643,27 @@ async function handleUpload(request, currentUser) {
 
     const securityLevel = String(formData.get("securityLevel") || "Restricted");
     const buffer = Buffer.from(await file.arrayBuffer());
-    const mlAssessment = await assessSecurity({
-      context: "file_upload",
-      behavior: buildBehaviorFeatures({ request, user: currentUser, action: "upload" }),
-      content: buildContentFeatures({ file, securityLevel }),
-      sample_base64: buffer.toString("base64"),
-    });
+    let mlAssessment;
+    try {
+      mlAssessment = await assessSecurity({
+        context: "file_upload",
+        behavior: buildBehaviorFeatures({ request, user: currentUser, action: "upload" }),
+        content: buildContentFeatures({ file, securityLevel }),
+        sample_base64: buffer.toString("base64"),
+      });
+    } catch (error) {
+      console.error("Upload proceeding without ML assessment", error);
+      mlAssessment = {
+        anomaly: false,
+        anomaly_score: 0,
+        malware: false,
+        malware_score: 0,
+        reasons: ["ml_service_unavailable"],
+        features: {
+          ml_service_status: "unavailable",
+        },
+      };
+    }
 
     if (mlAssessment.malware) {
       const reasons = Array.isArray(mlAssessment.reasons)
@@ -727,12 +742,16 @@ async function handleUpload(request, currentUser) {
       request,
     });
 
-    await sendFeedback({
-      outcome: "normal",
-      user_id: currentUser.sub,
-      file_id: saved.id,
-      features: mlAssessment.features || {},
-    });
+    try {
+      await sendFeedback({
+        outcome: "normal",
+        user_id: currentUser.sub,
+        file_id: saved.id,
+        features: mlAssessment.features || {},
+      });
+    } catch {
+      // Feedback logging is best effort and must not block successful uploads.
+    }
 
     return json({ file: saved });
   } catch (error) {
@@ -772,16 +791,31 @@ async function handleDownload(request, currentUser, fileId) {
       }
     }
 
-    const mlAssessment = await assessSecurity({
-      context: "file_download",
-      behavior: buildBehaviorFeatures({ request, user: currentUser, action: "download" }),
-      content: {
-        filename: file.filename,
-        mime_type: file.mime_type,
-        size_bytes: file.size_bytes,
-        security_level: file.security_level,
-      },
-    });
+    let mlAssessment;
+    try {
+      mlAssessment = await assessSecurity({
+        context: "file_download",
+        behavior: buildBehaviorFeatures({ request, user: currentUser, action: "download" }),
+        content: {
+          filename: file.filename,
+          mime_type: file.mime_type,
+          size_bytes: file.size_bytes,
+          security_level: file.security_level,
+        },
+      });
+    } catch (error) {
+      console.error("Download proceeding without ML assessment", error);
+      mlAssessment = {
+        anomaly: false,
+        anomaly_score: 0,
+        malware: false,
+        malware_score: 0,
+        reasons: ["ml_service_unavailable"],
+        features: {
+          ml_service_status: "unavailable",
+        },
+      };
+    }
 
     if (mlAssessment.anomaly) {
       await query(
