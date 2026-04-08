@@ -791,16 +791,31 @@ async function handleDownload(request, currentUser, fileId) {
       }
     }
 
-    const mlAssessment = await assessSecurity({
-      context: "file_download",
-      behavior: buildBehaviorFeatures({ request, user: currentUser, action: "download" }),
-      content: {
-        filename: file.filename,
-        mime_type: file.mime_type,
-        size_bytes: file.size_bytes,
-        security_level: file.security_level,
-      },
-    });
+    let mlAssessment;
+    try {
+      mlAssessment = await assessSecurity({
+        context: "file_download",
+        behavior: buildBehaviorFeatures({ request, user: currentUser, action: "download" }),
+        content: {
+          filename: file.filename,
+          mime_type: file.mime_type,
+          size_bytes: file.size_bytes,
+          security_level: file.security_level,
+        },
+      });
+    } catch (error) {
+      console.error("Download proceeding without ML assessment", error);
+      mlAssessment = {
+        anomaly: false,
+        anomaly_score: 0,
+        malware: false,
+        malware_score: 0,
+        reasons: ["ml_service_unavailable"],
+        features: {
+          ml_service_status: "unavailable",
+        },
+      };
+    }
 
     if (mlAssessment.anomaly) {
       await query(
