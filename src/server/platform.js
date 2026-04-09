@@ -472,6 +472,22 @@ async function consumeOneTimeShare({ shareId, fileId, userId, reason }) {
     [shareId, userId]
   );
 
+  await markFileDestroyed({ fileId, reason });
+}
+
+async function revokeActiveShares({ fileId }) {
+  await query(
+    `UPDATE shares
+     SET last_accessed_at = NOW(),
+         consumed_at = NOW()
+     WHERE file_id = $1
+       AND consumed_at IS NULL
+       AND access_count < max_access_count`,
+    [fileId]
+  );
+}
+
+async function markFileDestroyed({ fileId, reason }) {
   await query(
     `UPDATE files
      SET is_destroyed = TRUE,
@@ -887,6 +903,69 @@ async function handleDownload(request, currentUser, fileId) {
   }
 }
 
+async function handleDeleteFile(request, currentUser, fileId) {
+  try {
+    const fileResult = await query("SELECT * FROM files WHERE id = $1", [fileId]);
+    const file = fileResult.rows[0];
+    if (!file) {
+      return json({ error: "File not found" }, { status: 404 });
+    }
+
+    const isOwner = file.owner_id === currentUser.sub;
+    const isAdmin = currentUser.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      await logAccess({
+        userId: currentUser.sub,
+        fileId: file.id,
+        action: "delete",
+        decision: "denied",
+        reason: "Only owner or admin can delete",
+        request,
+      });
+      return json({ error: "Only owner or admin can delete this file" }, { status: 403 });
+    }
+
+    if (file.is_destroyed) {
+      await logAccess({
+        userId: currentUser.sub,
+        fileId: file.id,
+        action: "delete",
+        decision: "denied",
+        reason: "File already destroyed",
+        request,
+      });
+      return json({ error: "File has already been deleted" }, { status: 410 });
+    }
+
+    const actorLabel = isAdmin ? "admin" : "owner";
+    const actorIdentifier = currentUser.email || currentUser.sub;
+    const destroyReason = `Deleted by ${actorLabel} (${actorIdentifier})`;
+
+    await revokeActiveShares({ fileId: file.id });
+    await markFileDestroyed({ fileId: file.id, reason: destroyReason });
+    await deleteFromS3(file.s3_key);
+
+    await logAccess({
+      userId: currentUser.sub,
+      fileId: file.id,
+      action: "delete",
+      decision: "allowed",
+      reason: destroyReason,
+      request,
+    });
+
+    return json({
+      message: "File deleted permanently and removed from secure storage.",
+      fileId: file.id,
+      destroyed: true,
+    });
+  } catch (error) {
+    console.error("Delete failed", error);
+    return json({ error: "Delete failed" }, { status: 500 });
+  }
+}
+
 async function handleApiRequestInternal(request, path) {
   const [segment0, segment1, segment2, segment3] = path;
   const method = request.method;
@@ -1078,6 +1157,12 @@ async function handleApiRequestInternal(request, path) {
     const auth = await authorizeRequest(request);
     if (auth.response) return auth.response;
     return handleDownload(request, auth.user, segment2);
+  }
+
+  if (method === "DELETE" && path.length === 2 && segment0 === "files") {
+    const auth = await authorizeRequest(request);
+    if (auth.response) return auth.response;
+    return handleDeleteFile(request, auth.user, segment1);
   }
 
   if (segment0 === "admin") {

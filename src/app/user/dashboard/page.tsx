@@ -63,6 +63,12 @@ type UploadErrorPayload = {
   error?: string;
 };
 
+type DeleteFileResponse = {
+  message?: string;
+  fileId: string;
+  destroyed: boolean;
+};
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -81,6 +87,7 @@ export default function UserDashboard() {
   const [sharedByMe, setSharedByMe] = useState<SharedFile[]>([]);
   const [message, setMessage] = useState("");
   const [workingFileId, setWorkingFileId] = useState<string | null>(null);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [shareForm, setShareForm] = useState({ fileId: "", recipientEmail: "" });
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [uploadOptions, setUploadOptions] = useState<UploadOptions>({
@@ -205,6 +212,32 @@ export default function UserDashboard() {
       setMessage((err as Error).message);
     } finally {
       setWorkingFileId(null);
+    }
+  }
+
+  async function handleDeleteFile(file: FileRow) {
+    const confirmed = window.confirm(
+      `Delete "${file.filename}" permanently? Any active one-time shares for this file will be revoked.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingFileId(file.id);
+      const result = await apiFetch<DeleteFileResponse>(`/files/${file.id}`, token || undefined, {
+        method: "DELETE",
+      });
+      setUploadAlert(null);
+      setMessage(result.message || "File deleted permanently.");
+      await loadFiles();
+    } catch (err) {
+      setMessage((err as Error).message);
+      if (isApiError(err) && err.status === 410) {
+        await loadFiles();
+      }
+    } finally {
+      setDeletingFileId(null);
     }
   }
 
@@ -415,15 +448,24 @@ export default function UserDashboard() {
                   </td>
                   <td className="px-4 py-3 text-slate-500">{new Date(file.created_at).toLocaleString()}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() =>
-                        handleDownload(file.id, "Secure record downloaded.")
-                      }
-                      className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                      disabled={workingFileId === file.id}
-                    >
-                      {workingFileId === file.id ? "Preparing..." : "Download"}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() =>
+                          handleDownload(file.id, "Secure record downloaded.")
+                        }
+                        className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        disabled={workingFileId === file.id || deletingFileId === file.id}
+                      >
+                        {workingFileId === file.id ? "Preparing..." : "Download"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteFile(file)}
+                        className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        disabled={workingFileId === file.id || deletingFileId === file.id}
+                      >
+                        {deletingFileId === file.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

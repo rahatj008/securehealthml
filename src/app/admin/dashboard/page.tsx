@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { apiFetch } from "../../lib/api";
 import { useAuthGuard } from "../../lib/auth";
@@ -45,6 +45,12 @@ type MalwareEvent = {
   created_at: string;
   context?: string | null;
   mime_type?: string | null;
+};
+
+type DeleteFileResponse = {
+  message?: string;
+  fileId: string;
+  destroyed: boolean;
 };
 
 function LineChart({ title, data, color }: { title: string; data: Point[]; color: string }) {
@@ -94,12 +100,14 @@ export default function AdminDashboard() {
     malwareDetection: [],
     authFailures: [],
   });
+  const [actionMessage, setActionMessage] = useState("");
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const authToken = token || undefined;
 
-  const loadDashboard = useEffectEvent(async ({ background = false }: { background?: boolean } = {}) => {
+  const loadDashboard = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     if (!background) {
       setLoading(true);
     }
@@ -123,7 +131,31 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  });
+  }, [authToken]);
+
+  async function handleDeleteFile(file: FileRow) {
+    const confirmed = window.confirm(
+      `Delete "${file.filename}" permanently? Any active one-time shares for this file will be revoked.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingFileId(file.id);
+      const result = await apiFetch<DeleteFileResponse>(`/files/${file.id}`, authToken, {
+        method: "DELETE",
+      });
+      setActionMessage(result.message || "File deleted permanently.");
+      setError("");
+      await loadDashboard();
+    } catch (err) {
+      setError((err as Error).message || "Failed to delete file.");
+      await loadDashboard({ background: true });
+    } finally {
+      setDeletingFileId(null);
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -134,7 +166,7 @@ export default function AdminDashboard() {
     }, 15000);
 
     return () => window.clearInterval(intervalId);
-  }, [token]);
+  }, [token, loadDashboard]);
 
   if (!ready || !user) {
     return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading...</div>;
@@ -197,6 +229,12 @@ export default function AdminDashboard() {
       {error ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {error}
+        </div>
+      ) : null}
+
+      {actionMessage ? (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          {actionMessage}
         </div>
       ) : null}
 
@@ -300,12 +338,13 @@ export default function AdminDashboard() {
                   <th className="px-4 py-3">Security</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && !files.length ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
                       Loading recent records...
                     </td>
                   </tr>
@@ -313,7 +352,7 @@ export default function AdminDashboard() {
 
                 {!loading && !files.length ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
                       No recent records are available.
                     </td>
                   </tr>
@@ -334,6 +373,19 @@ export default function AdminDashboard() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-500">{new Date(file.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      {file.is_destroyed ? (
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Removed</span>
+                      ) : (
+                        <button
+                          onClick={() => handleDeleteFile(file)}
+                          className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                          disabled={deletingFileId === file.id}
+                        >
+                          {deletingFileId === file.id ? "Deleting..." : "Delete"}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
