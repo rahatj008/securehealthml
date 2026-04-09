@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { AWS } from "./backend-require.js";
+import { DeleteObjectCommand, GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 
 const storageDriver = String(process.env.STORAGE_DRIVER || "s3").trim().toLowerCase();
 const localStorageRoot = process.env.LOCAL_STORAGE_ROOT || path.join(process.cwd(), "local-storage");
@@ -16,13 +17,13 @@ if (process.env.S3_ENDPOINT) {
   s3Config.endpoint = process.env.S3_ENDPOINT;
 }
 if (process.env.S3_FORCE_PATH_STYLE) {
-  s3Config.s3ForcePathStyle = process.env.S3_FORCE_PATH_STYLE === "true";
+  s3Config.forcePathStyle = process.env.S3_FORCE_PATH_STYLE === "true";
 }
 if (process.env.S3_SSL_ENABLED) {
-  s3Config.sslEnabled = process.env.S3_SSL_ENABLED === "true";
+  s3Config.tls = process.env.S3_SSL_ENABLED === "true";
 }
 
-const s3 = new AWS.S3(s3Config);
+const s3 = new S3Client(s3Config);
 
 function resolveLocalPath(key) {
   const normalizedKey = String(key || "").replace(/\\/g, "/").replace(/^\/+/, "");
@@ -65,6 +66,20 @@ async function deleteFromFs(key) {
   return {};
 }
 
+async function readS3Body(body) {
+  if (!body) return new Uint8Array();
+  if (body instanceof Uint8Array) return body;
+  if (typeof body.transformToByteArray === "function") {
+    return body.transformToByteArray();
+  }
+
+  const chunks = [];
+  for await (const chunk of body) {
+    chunks.push(chunk instanceof Uint8Array ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function uploadToS3({ key, buffer, contentType }) {
   if (storageDriver === "fs") {
     return uploadToFs({ key, buffer, contentType });
@@ -79,7 +94,11 @@ export async function uploadToS3({ key, buffer, contentType }) {
   if (process.env.S3_SERVER_SIDE_ENCRYPTION) {
     params.ServerSideEncryption = process.env.S3_SERVER_SIDE_ENCRYPTION;
   }
-  return s3.upload(params).promise();
+  const upload = new Upload({
+    client: s3,
+    params,
+  });
+  return upload.done();
 }
 
 export async function downloadFromS3(key) {
@@ -87,12 +106,16 @@ export async function downloadFromS3(key) {
     return downloadFromFs(key);
   }
   if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
-  return s3
-    .getObject({
+  const result = await s3.send(
+    new GetObjectCommand({
       Bucket: bucket,
       Key: key,
     })
-    .promise();
+  );
+  return {
+    ...result,
+    Body: await readS3Body(result.Body),
+  };
 }
 
 export async function deleteFromS3(key) {
@@ -100,10 +123,10 @@ export async function deleteFromS3(key) {
     return deleteFromFs(key);
   }
   if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
-  return s3
-    .deleteObject({
+  return s3.send(
+    new DeleteObjectCommand({
       Bucket: bucket,
       Key: key,
     })
-    .promise();
+  );
 }
