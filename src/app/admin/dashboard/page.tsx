@@ -67,14 +67,17 @@ function LineChart({ title, data, color }: { title: string; data: Point[]; color
   }, [data, max]);
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-600">{title}</p>
-      <svg viewBox="0 0 100 100" className="mt-4 h-36 w-full">
-        <polyline points={points} fill="none" stroke={color} strokeWidth="2" />
+    <div className="surface-card rounded-[1.7rem] p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-slate-700">{title}</p>
+        <span className="status-pill bg-slate-100 text-slate-600">7 days</span>
+      </div>
+      <svg viewBox="0 0 100 100" className="mt-4 h-36 w-full overflow-visible">
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" />
         {data.map((d, idx) => {
           const x = (idx / Math.max(data.length - 1, 1)) * 100;
           const y = 100 - (d.count / max) * 90;
-          return <circle key={`${d.day}-${idx}`} cx={x} cy={y} r="1.8" fill={color} />;
+          return <circle key={`${d.day}-${idx}`} cx={x} cy={y} r="2" fill={color} />;
         })}
       </svg>
       <div className="mt-2 flex justify-between text-[11px] text-slate-400">
@@ -85,9 +88,13 @@ function LineChart({ title, data, color }: { title: string; data: Point[]; color
   );
 }
 
-function formatTime(value: string | null) {
+function formatClock(value: string | null) {
   if (!value) return "Not updated yet";
   return new Date(value).toLocaleTimeString();
+}
+
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString();
 }
 
 export default function AdminDashboard() {
@@ -107,31 +114,34 @@ export default function AdminDashboard() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const authToken = token || undefined;
 
-  const loadDashboard = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
-    if (!background) {
-      setLoading(true);
-    }
+  const loadDashboard = useCallback(
+    async ({ background = false }: { background?: boolean } = {}) => {
+      if (!background) {
+        setLoading(true);
+      }
 
-    try {
-      const [summaryData, fileData, analyticsData, malwareData] = await Promise.all([
-        apiFetch<Summary>("/admin/summary", authToken),
-        apiFetch<{ files?: FileRow[] }>("/admin/files", authToken),
-        apiFetch<Analytics>("/admin/analytics", authToken),
-        apiFetch<{ events?: MalwareEvent[] }>("/admin/logs/malware?limit=5", authToken),
-      ]);
+      try {
+        const [summaryData, fileData, analyticsData, malwareData] = await Promise.all([
+          apiFetch<Summary>("/admin/summary", authToken),
+          apiFetch<{ files?: FileRow[] }>("/admin/files", authToken),
+          apiFetch<Analytics>("/admin/analytics", authToken),
+          apiFetch<{ events?: MalwareEvent[] }>("/admin/logs/malware?limit=5", authToken),
+        ]);
 
-      setSummary(summaryData);
-      setFiles(fileData.files || []);
-      setAnalytics(analyticsData);
-      setRecentMalware(malwareData.events || []);
-      setLastUpdatedAt(new Date().toISOString());
-      setError("");
-    } catch (err) {
-      setError((err as Error).message || "Failed to load dashboard data.");
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken]);
+        setSummary(summaryData);
+        setFiles(fileData.files || []);
+        setAnalytics(analyticsData);
+        setRecentMalware(malwareData.events || []);
+        setLastUpdatedAt(new Date().toISOString());
+        setError("");
+      } catch (err) {
+        setError((err as Error).message || "Failed to load dashboard data.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [authToken]
+  );
 
   async function handleDeleteFile(file: FileRow) {
     const confirmed = window.confirm(
@@ -169,15 +179,15 @@ export default function AdminDashboard() {
   }, [token, loadDashboard]);
 
   if (!ready || !user) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading...</div>;
+    return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>;
   }
 
   const metricCards = [
-    { label: "Active Files", value: summary?.files, fallback: loading ? "..." : 0 },
-    { label: "Users", value: summary?.users, fallback: loading ? "..." : 0 },
-    { label: "Anomalies", value: summary?.anomalies, fallback: loading ? "..." : 0 },
-    { label: "Malware", value: summary?.malware, fallback: loading ? "..." : 0 },
-    { label: "Auth Failures", value: summary?.authDenied, fallback: loading ? "..." : 0 },
+    { label: "Active files", value: summary?.files, tone: "bg-blue-50 text-blue-700" },
+    { label: "Users", value: summary?.users, tone: "bg-slate-100 text-slate-700" },
+    { label: "Anomalies", value: summary?.anomalies, tone: "bg-amber-50 text-amber-700" },
+    { label: "Malware", value: summary?.malware, tone: "bg-rose-50 text-rose-700" },
+    { label: "Auth failures", value: summary?.authDenied, tone: "bg-emerald-50 text-emerald-700" },
   ];
 
   return (
@@ -189,131 +199,132 @@ export default function AdminDashboard() {
       onLogout={logout}
       nav={adminNav}
     >
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Secured Health Records</p>
-          <h1 className="mt-3 max-w-3xl text-3xl font-semibold text-slate-900">
-            Machine Learning-Enhanced Secure Platform for Electronic Health Record Sharing with Proactive Threat Detection
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.8fr)]">
+        <div className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Admin command center</p>
+          <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            Monitor live file risk, policy activity, and user behavior from a single responsive dashboard.
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-            Attribute-based controls protect each record, while the ML security layer evaluates behavior and content
-            in real time to stop anomalous access, malicious uploads, and risky authentication patterns before damage
-            spreads.
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+            Malware blocks, anomaly detections, authentication failures, and record status changes are collected into
+            one stream so administrators can react quickly on desktop or mobile.
           </p>
         </div>
 
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">Security Monitoring</p>
-          <p className="mt-3 text-2xl font-semibold text-emerald-950">Malware detections flow into live admin analytics.</p>
+        <div className="surface-card rounded-[2rem] border border-emerald-200 p-5 sm:p-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">Security monitoring</p>
+          <p className="mt-3 text-xl font-semibold text-emerald-950">
+            Malware detections flow straight into the graph, logs, and summary counters.
+          </p>
           <p className="mt-3 text-sm leading-6 text-emerald-900">
-            Upload blocks are logged immediately and reflected on the dashboard, malware log, and seven-day detection
-            graph without requiring a full page reload.
+            Upload blocks are logged immediately and reflected without requiring a full page reload.
           </p>
         </div>
-      </div>
+      </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className="surface-card flex flex-col gap-3 rounded-[1.8rem] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-700">Security telemetry</p>
           <p className="text-xs text-slate-500">
-            {loading && !lastUpdatedAt
-              ? "Loading latest dashboard data..."
-              : `Last updated at ${formatTime(lastUpdatedAt)}`}
+            {loading && !lastUpdatedAt ? "Loading latest dashboard data..." : `Last updated at ${formatClock(lastUpdatedAt)}`}
           </p>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-          Auto refresh every 15 seconds
-        </span>
+        <span className="status-pill bg-slate-100 text-slate-600">Auto refresh every 15 seconds</span>
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {error}
         </div>
       ) : null}
 
       {actionMessage ? (
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
           {actionMessage}
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {metricCards.map((card) => (
-          <div key={card.label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase text-slate-400">{card.label}</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-800">{card.value ?? card.fallback}</p>
+          <div key={card.label} className="surface-card rounded-[1.7rem] p-5">
+            <span className={`status-pill ${card.tone}`}>{card.label}</span>
+            <p className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">
+              {card.value ?? (loading ? "..." : 0)}
+            </p>
           </div>
         ))}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <LineChart title="Anomaly Detection" data={analytics.anomalyDetection} color="#1d4ed8" />
-        <LineChart title="Malware Detection" data={analytics.malwareDetection} color="#dc2626" />
-        <LineChart title="Auth Failures" data={analytics.authFailures} color="#f59e0b" />
+        <LineChart title="Anomaly detection" data={analytics.anomalyDetection} color="#1d4ed8" />
+        <LineChart title="Malware detection" data={analytics.malwareDetection} color="#dc2626" />
+        <LineChart title="Auth failures" data={analytics.authFailures} color="#f59e0b" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-lg font-semibold">System Flow</p>
-          <div className="mt-4 grid gap-3">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
+        <div className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-lg font-semibold text-slate-900">System flow</p>
+              <p className="mt-1 text-sm text-slate-500">The platform steps before a file is allowed, blocked, or destroyed.</p>
+            </div>
+            <span className="status-pill bg-slate-100 text-slate-600">Live enforcement path</span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
-              "1. User request enters via web app for login, upload, or download.",
-              "2. Authentication validates credentials and logs denied attempts.",
-              "3. ABAC checks role, department, and clearance against file policy.",
-              "4. The ML service evaluates behavior and file-content risk in parallel.",
-              "5. Normal actions proceed; anomalous actions trigger alerts and shutdown.",
-              "6. Audit and security events feed the continuous ML improvement loop.",
-            ].map((step) => (
-              <div key={step} className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                {step}
+              "User requests enter through the unified web app and API layer.",
+              "Authentication validates credentials and logs denied attempts.",
+              "ABAC checks role, department, and clearance against the file policy.",
+              "The ML service evaluates behavior and file-content risk in parallel.",
+              "Suspicious uploads and risky actions are blocked immediately.",
+              "Audit and security events feed the ongoing monitoring loop.",
+            ].map((step, index) => (
+              <div key={step} className="rounded-[1.4rem] bg-slate-50 px-4 py-4 text-sm text-slate-700">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Step {index + 1}</p>
+                <p className="mt-2">{step}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
+        <div className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-lg font-semibold">Recent Malware Detections</p>
-              <p className="text-sm text-slate-500">The latest blocked uploads from the security scanner.</p>
+              <p className="text-lg font-semibold text-slate-900">Recent malware detections</p>
+              <p className="mt-1 text-sm text-slate-500">Latest blocked uploads from the scanner service.</p>
             </div>
-            <Link
-              href="/admin/malware-logs"
-              className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
-            >
+            <Link href="/admin/malware-logs" className="status-pill bg-rose-50 text-rose-700">
               View all logs
             </Link>
           </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 space-y-3">
             {loading && !recentMalware.length ? (
-              <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">
+              <div className="rounded-[1.4rem] bg-slate-50 px-4 py-4 text-sm text-slate-500">
                 Loading malware detections...
               </div>
             ) : null}
 
             {!loading && !recentMalware.length ? (
-              <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">
+              <div className="rounded-[1.4rem] bg-slate-50 px-4 py-4 text-sm text-slate-500">
                 No malware detections have been recorded yet.
               </div>
             ) : null}
 
             {recentMalware.map((event) => (
-              <div key={event.id} className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
+              <div key={event.id} className="rounded-[1.4rem] border border-rose-100 bg-rose-50 px-4 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{event.filename || "Unknown file"}</p>
-                    <p className="text-xs text-slate-500">
-                      {event.email || "Unknown user"} • {new Date(event.created_at).toLocaleString()}
+                    <p className="mt-1 text-xs text-slate-500">
+                      {event.email || "Unknown user"} | {formatTimestamp(event.created_at)}
                     </p>
                   </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-700">
-                    Score {Number(event.score).toFixed(2)}
-                  </span>
+                  <span className="status-pill bg-white text-rose-700">Score {Number(event.score).toFixed(2)}</span>
                 </div>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-rose-700">Indicators</p>
-                <p className="mt-1 text-sm text-slate-700">
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.22em] text-rose-700">Indicators</p>
+                <p className="mt-1 text-sm leading-6 text-slate-700">
                   {(event.reasons || []).slice(0, 3).join(", ") || "Malware detection signals present."}
                 </p>
               </div>
@@ -322,77 +333,123 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-lg font-semibold">Recent Records</p>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Live Data</span>
+      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-lg font-semibold text-slate-900">Recent records</p>
+            <p className="mt-1 text-sm text-slate-500">The latest file activity across the system.</p>
           </div>
-
-          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">File</th>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Security</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && !files.length ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
-                      Loading recent records...
-                    </td>
-                  </tr>
-                ) : null}
-
-                {!loading && !files.length ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
-                      No recent records are available.
-                    </td>
-                  </tr>
-                ) : null}
-
-                {files.slice(0, 8).map((file) => (
-                  <tr key={file.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-semibold text-slate-700">{file.filename}</td>
-                    <td className="px-4 py-3 text-slate-500">{file.owner_email || "Unknown"}</td>
-                    <td className="px-4 py-3 text-slate-500">{file.security_level}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          file.is_destroyed ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"
-                        }`}
-                      >
-                        {file.is_destroyed ? "Destroyed" : "Active"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">{new Date(file.created_at).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      {file.is_destroyed ? (
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Removed</span>
-                      ) : (
-                        <button
-                          onClick={() => handleDeleteFile(file)}
-                          className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                          disabled={deletingFileId === file.id}
-                        >
-                          {deletingFileId === file.id ? "Deleting..." : "Delete"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <span className="status-pill bg-blue-50 text-blue-700">Live data</span>
         </div>
-      </div>
+
+        <div className="mt-5 space-y-3 md:hidden">
+          {loading && !files.length ? (
+            <div className="mobile-data-card text-sm text-slate-500">Loading recent records...</div>
+          ) : null}
+
+          {!loading && !files.length ? (
+            <div className="mobile-data-card text-sm text-slate-500">No recent records are available.</div>
+          ) : null}
+
+          {files.slice(0, 8).map((file) => (
+            <div key={file.id} className="mobile-data-card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-semibold text-slate-900">{file.filename}</p>
+                  <p className="mt-1 text-sm text-slate-500">{file.owner_email || "Unknown owner"}</p>
+                </div>
+                <span
+                  className={`status-pill ${
+                    file.is_destroyed ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {file.is_destroyed ? "Destroyed" : "Active"}
+                </span>
+              </div>
+              <div className="mt-4 space-y-2 text-sm text-slate-600">
+                <p>Security: {file.security_level}</p>
+                <p>Created: {formatTimestamp(file.created_at)}</p>
+              </div>
+              {file.is_destroyed ? (
+                <div className="mt-4 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-500">
+                  Removed
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleDeleteFile(file)}
+                  className="mt-4 w-full rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={deletingFileId === file.id}
+                >
+                  {deletingFileId === file.id ? "Deleting..." : "Delete"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+              <tr>
+                <th className="px-4 py-3">File</th>
+                <th className="px-4 py-3">Owner</th>
+                <th className="px-4 py-3">Security</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Created</th>
+                <th className="px-4 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && !files.length ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                    Loading recent records...
+                  </td>
+                </tr>
+              ) : null}
+
+              {!loading && !files.length ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                    No recent records are available.
+                  </td>
+                </tr>
+              ) : null}
+
+              {files.slice(0, 8).map((file) => (
+                <tr key={file.id} className="border-t border-slate-100">
+                  <td className="px-4 py-3 font-semibold text-slate-700">{file.filename}</td>
+                  <td className="px-4 py-3 text-slate-500">{file.owner_email || "Unknown"}</td>
+                  <td className="px-4 py-3 text-slate-500">{file.security_level}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`status-pill ${
+                        file.is_destroyed ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {file.is_destroyed ? "Destroyed" : "Active"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(file.created_at)}</td>
+                  <td className="px-4 py-3">
+                    {file.is_destroyed ? (
+                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Removed</span>
+                    ) : (
+                      <button
+                        onClick={() => handleDeleteFile(file)}
+                        className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        disabled={deletingFileId === file.id}
+                      >
+                        {deletingFileId === file.id ? "Deleting..." : "Delete"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </AppShell>
   );
 }

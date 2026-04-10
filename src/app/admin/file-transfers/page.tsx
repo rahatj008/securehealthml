@@ -15,6 +15,10 @@ type TransferLog = {
   created_at: string;
 };
 
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString();
+}
+
 export default function FileTransfersPage() {
   const { token, user, ready, logout } = useAuthGuard("admin");
   const [logs, setLogs] = useState<TransferLog[]>([]);
@@ -34,7 +38,7 @@ export default function FileTransfersPage() {
   }, [token]);
 
   if (!ready || !user) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading...</div>;
+    return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>;
   }
 
   return (
@@ -46,17 +50,61 @@ export default function FileTransfersPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-lg font-semibold">File Transfer Log</p>
-        <p className="text-sm text-slate-500">Uploads, downloads, and sharing events.</p>
+      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">File transfers</p>
+            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+              Track uploads, downloads, and sharing activity from the transfer timeline.
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              This view is useful for spotting unusual movement patterns around sensitive records.
+            </p>
+          </div>
+          <span className="status-pill bg-blue-50 text-blue-700">Transfer activity feed</span>
+        </div>
+      </section>
 
+      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
         {error ? (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {error}
           </div>
         ) : null}
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
+        <div className="mt-5 space-y-3 md:hidden">
+          {loading ? (
+            <div className="mobile-data-card text-sm text-slate-500">Loading file transfer logs...</div>
+          ) : null}
+
+          {!loading && !logs.length ? (
+            <div className="mobile-data-card text-sm text-slate-500">No file transfer logs are available yet.</div>
+          ) : null}
+
+          {logs.map((log) => (
+            <div key={log.id} className="mobile-data-card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-semibold capitalize text-slate-900">{log.action}</p>
+                  <p className="mt-1 text-sm text-slate-500">{log.email || "Unknown user"}</p>
+                </div>
+                <span
+                  className={`status-pill ${
+                    log.decision === "allowed" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                  }`}
+                >
+                  {log.decision}
+                </span>
+              </div>
+              <div className="mt-4 space-y-2 text-sm text-slate-600">
+                <p>File: {log.filename || "-"}</p>
+                <p>Time: {formatTimestamp(log.created_at)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-400">
               <tr>
@@ -86,19 +134,19 @@ export default function FileTransfersPage() {
 
               {logs.map((log) => (
                 <tr key={log.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-slate-700">{log.action}</td>
+                  <td className="px-4 py-3 font-semibold capitalize text-slate-700">{log.action}</td>
                   <td className="px-4 py-3 text-slate-500">{log.email || "Unknown"}</td>
                   <td className="px-4 py-3 text-slate-500">{log.filename || "-"}</td>
                   <td className={`px-4 py-3 ${log.decision === "allowed" ? "text-emerald-600" : "text-rose-500"}`}>
                     {log.decision}
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{new Date(log.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(log.created_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </AppShell>
   );
 }

@@ -72,7 +72,7 @@ export default function PolicyEditorPage() {
 
   useEffect(() => {
     if (!token) return;
-    syncPolicies().catch(() => null);
+    syncPolicies().catch((err) => setMessage((err as Error).message));
   }, [token]);
 
   async function createDepartment(e: React.FormEvent) {
@@ -163,7 +163,7 @@ export default function PolicyEditorPage() {
   }
 
   if (!ready || !user) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading...</div>;
+    return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>;
   }
 
   return (
@@ -175,56 +175,86 @@ export default function PolicyEditorPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-lg font-semibold">Department Management</p>
-        <form onSubmit={createDepartment} className="mt-4 flex gap-3">
+      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Policy editor</p>
+            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+              Tune file-level ABAC rules so the right teams can access the right records.
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Each record can be updated with allowed roles, approved departments, and the minimum clearance required.
+            </p>
+          </div>
+          <span className="status-pill bg-blue-50 text-blue-700">Role + department + clearance</span>
+        </div>
+      </section>
+
+      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-lg font-semibold text-slate-900">Department management</p>
+            <p className="mt-1 text-sm text-slate-500">Create departments that can be attached to file policies.</p>
+          </div>
+          <span className="status-pill bg-slate-100 text-slate-600">{departments.length} departments</span>
+        </div>
+
+        <form onSubmit={createDepartment} className="mt-5 flex flex-col gap-3 sm:flex-row">
           <input
-            className="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm"
+            className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
             placeholder="Create department"
             value={newDepartment}
             onChange={(e) => setNewDepartment(e.target.value)}
           />
-          <button className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Add</button>
+          <button className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200">
+            Add
+          </button>
         </form>
-        <div className="mt-3 flex flex-wrap gap-2">
+
+        <div className="mt-4 flex flex-wrap gap-2">
           {departments.map((d) => (
-            <span key={d} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+            <span key={d} className="status-pill bg-slate-100 text-slate-700">
               {d}
             </span>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-lg font-semibold">ABAC Policy Editor</p>
-        <p className="text-sm text-slate-500">Define role + department + clearance access for each uploaded file.</p>
+      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-lg font-semibold text-slate-900">ABAC policy editor</p>
+            <p className="mt-1 text-sm text-slate-500">Define access for each uploaded file individually.</p>
+          </div>
+          <span className="status-pill bg-emerald-50 text-emerald-700">{rows.length} tracked files</span>
+        </div>
 
         {!rows.length ? (
-          <div className="mt-6 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <div className="mt-6 rounded-[1.4rem] border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             No files found. Upload at least one file to configure file-level ABAC policies.
           </div>
         ) : (
           <div className="mt-6 space-y-4">
             {rows.map((row, idx) => (
-              <div key={row.id} className="rounded-2xl border border-slate-100 p-4">
-                <div className="mb-3 flex items-center justify-between">
+              <div key={row.id} className="rounded-[1.5rem] border border-slate-100 bg-white px-4 py-4 sm:px-5 sm:py-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="font-semibold text-slate-800">{row.filename}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-base font-semibold text-slate-900">{row.filename}</p>
+                    <p className="mt-1 text-sm text-slate-500">
                       Owner: {row.owner_email || "Unknown"} | {row.security_level}
                     </p>
                   </div>
                   <button
                     onClick={() => updatePolicy(row)}
-                    className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white"
+                    className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200"
                   >
-                    Save Policy
+                    Save policy
                   </button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="mt-5 grid gap-5 lg:grid-cols-3">
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Roles</p>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Roles</p>
                     <div className="flex flex-wrap gap-2">
                       {roleOptions.map((role) => {
                         const selected = row.policy.roles?.includes(role);
@@ -233,8 +263,8 @@ export default function PolicyEditorPage() {
                             key={role}
                             type="button"
                             onClick={() => toggleRole(idx, role)}
-                            className={`rounded-full px-3 py-1 text-xs ${
-                              selected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"
+                            className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                              selected ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                             }`}
                           >
                             {role}
@@ -245,7 +275,7 @@ export default function PolicyEditorPage() {
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Departments</p>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Departments</p>
                     <div className="flex flex-wrap gap-2">
                       {departments.map((dep) => {
                         const selected = row.policy.departments?.includes(dep);
@@ -254,8 +284,8 @@ export default function PolicyEditorPage() {
                             key={dep}
                             type="button"
                             onClick={() => toggleDepartment(idx, dep)}
-                            className={`rounded-full px-3 py-1 text-xs ${
-                              selected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"
+                            className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                              selected ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                             }`}
                           >
                             {dep}
@@ -266,9 +296,9 @@ export default function PolicyEditorPage() {
                   </div>
 
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Min Clearance</p>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Min clearance</p>
                     <select
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
                       value={row.policy.minClearance}
                       onChange={(e) => {
                         const minClearance = Number(e.target.value);
@@ -291,10 +321,12 @@ export default function PolicyEditorPage() {
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {message ? (
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">{message}</div>
+        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          {message}
+        </div>
       ) : null}
     </AppShell>
   );

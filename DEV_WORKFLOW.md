@@ -16,6 +16,8 @@ Run the Next.js app locally with hot reload:
 npm run dev:app
 ```
 
+`npm run dev:app` now waits for Postgres and the ML service to be reachable before starting Next.js, which makes local startup much more reliable.
+
 Then open:
 
 - App: `http://localhost:3001`
@@ -64,6 +66,18 @@ Run the app on port 3001:
 npm run dev:app
 ```
 
+If you need the old direct behavior without the startup wait, use:
+
+```bash
+npm run dev:app:raw
+```
+
+If you want one command that starts Docker services and then launches the app, use:
+
+```bash
+npm run dev:full
+```
+
 ## ClamAV in dev
 
 ClamAV is enabled by default in `docker-compose.dev.yml`, so the development stack now matches the full scanner flow more closely.
@@ -71,3 +85,4 @@ ClamAV is enabled by default in `docker-compose.dev.yml`, so the development sta
 One practical note:
 
 - the first startup can still be slow while ClamAV warms up and prepares its database
+- the app now waits for Postgres and the ML health check before booting, so a slower service startup should no longer turn into a random login or API failure on the first request

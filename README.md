@@ -110,6 +110,9 @@ Dev notes:
 - ML service runs on `http://localhost:8001`
 - ClamAV runs in Docker
 - local filesystem storage is used, so AWS credentials are not required
+- `npm run dev:app` now waits for Postgres and the ML service before launching Next.js, which avoids the flaky first-request startup failures we were seeing in dev
+- if you intentionally want to skip the wait logic, use `npm run dev:app:raw`
+- if you want one command for the full dev workflow, use `npm run dev:full`
 
 ### Full Local Stack
 
@@ -153,6 +156,8 @@ Helpful commands:
 ```bash
 npm run dev:services:logs
 npm run dev:services:down
+npm run dev:app:raw
+npm run dev:full
 ```
 
 More details are in [DEV_WORKFLOW.md](./DEV_WORKFLOW.md).

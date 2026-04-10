@@ -14,6 +14,10 @@ type SecurityEvent = {
   created_at: string;
 };
 
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString();
+}
+
 export default function AnomalyLogsPage() {
   const { token, user, ready, logout } = useAuthGuard("admin");
   const [events, setEvents] = useState<SecurityEvent[]>([]);
@@ -33,7 +37,7 @@ export default function AnomalyLogsPage() {
   }, [token]);
 
   if (!ready || !user) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading...</div>;
+    return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>;
   }
 
   return (
@@ -45,17 +49,52 @@ export default function AnomalyLogsPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-lg font-semibold">Anomaly Events</p>
-        <p className="text-sm text-slate-500">Behavioral and access anomalies scored by the ML security layer.</p>
+      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Anomaly events</p>
+            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+              Inspect behavioral anomalies surfaced by the security model.
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              These events capture suspicious patterns around users and file access, with a score attached to each one.
+            </p>
+          </div>
+          <span className="status-pill bg-amber-50 text-amber-700">ML behavior signals</span>
+        </div>
+      </section>
 
+      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
         {error ? (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {error}
           </div>
         ) : null}
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
+        <div className="mt-5 space-y-3 md:hidden">
+          {loading ? (
+            <div className="mobile-data-card text-sm text-slate-500">Loading anomaly events...</div>
+          ) : null}
+
+          {!loading && !events.length ? (
+            <div className="mobile-data-card text-sm text-slate-500">No anomaly events have been recorded yet.</div>
+          ) : null}
+
+          {events.map((event) => (
+            <div key={event.id} className="mobile-data-card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-semibold text-slate-900">{event.email || "Unknown user"}</p>
+                  <p className="mt-1 text-sm text-slate-500">{event.filename || "No linked file"}</p>
+                </div>
+                <span className="status-pill bg-rose-50 text-rose-700">Score {Number(event.score).toFixed(2)}</span>
+              </div>
+              <p className="mt-4 text-sm text-slate-600">Time: {formatTimestamp(event.created_at)}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-400">
               <tr>
@@ -87,13 +126,13 @@ export default function AnomalyLogsPage() {
                   <td className="px-4 py-3 text-slate-500">{event.email || "Unknown"}</td>
                   <td className="px-4 py-3 text-slate-500">{event.filename || "-"}</td>
                   <td className="px-4 py-3 font-semibold text-rose-500">{Number(event.score).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-slate-500">{new Date(event.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(event.created_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </AppShell>
   );
 }

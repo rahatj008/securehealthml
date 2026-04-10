@@ -57,19 +57,93 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function collectErrorCodes(error) {
+  const codes = new Set();
+  const queue = [error];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current) continue;
+
+    const code = String(current?.code || "").trim().toUpperCase();
+    if (code) {
+      codes.add(code);
+    }
+
+    if (current?.cause) {
+      queue.push(current.cause);
+    }
+
+    if (Array.isArray(current?.errors)) {
+      queue.push(...current.errors);
+    }
+  }
+
+  return codes;
+}
+
+function collectErrorMessages(error) {
+  const messages = new Set();
+  const queue = [error];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current) continue;
+
+    const message = String(current?.message || "").trim().toLowerCase();
+    if (message) {
+      messages.add(message);
+    }
+
+    if (current?.cause) {
+      queue.push(current.cause);
+    }
+
+    if (Array.isArray(current?.errors)) {
+      queue.push(...current.errors);
+    }
+  }
+
+  return messages;
+}
+
 function isRetryableBootstrapError(error) {
-  const code = String(error?.code || "").trim().toUpperCase();
-  return [
+  const retryableCodes = [
     "57P03", // database system is starting up / in recovery mode
     "ECONNREFUSED",
     "ECONNRESET",
     "ETIMEDOUT",
     "ENOTFOUND",
-  ].includes(code);
+  ];
+
+  if ([...collectErrorCodes(error)].some((code) => retryableCodes.includes(code))) {
+    return true;
+  }
+
+  return [...collectErrorMessages(error)].some((message) =>
+    [
+      "connection terminated due to connection timeout",
+      "connection terminated unexpectedly",
+      "connect econnrefused",
+      "database system is starting up",
+    ].some((needle) => message.includes(needle))
+  );
 }
 
 function json(data, init = {}) {
   return Response.json(data, init);
+}
+
+function serviceWarmingUpResponse() {
+  return json(
+    { error: "Service warming up. Please retry in a few seconds." },
+    {
+      status: 503,
+      headers: {
+        "Retry-After": "3",
+      },
+    }
+  );
 }
 
 function normalizeToken(value) {
@@ -498,6 +572,82 @@ async function markFileDestroyed({ fileId, reason }) {
   );
 }
 
+async function listAccessibleFilesForUser(user) {
+  const sharedResult = await query(
+    `SELECT files.id AS file_id,
+            files.filename,
+            files.security_level,
+            files.created_at,
+            users.email AS owner_email,
+            shares.id AS share_id,
+            shares.share_mode,
+            shares.max_access_count,
+            shares.created_at AS shared_at
+     FROM shares
+     JOIN files ON files.id = shares.file_id
+     LEFT JOIN users ON users.id = files.owner_id
+     WHERE shares.recipient_id = $1
+       AND shares.consumed_at IS NULL
+       AND files.is_destroyed = FALSE
+     ORDER BY shares.created_at DESC`,
+    [user.sub]
+  );
+
+  const accessibleById = new Map();
+
+  for (const row of sharedResult.rows) {
+    accessibleById.set(row.file_id, {
+      file_id: row.file_id,
+      filename: row.filename,
+      security_level: row.security_level,
+      created_at: row.created_at,
+      owner_email: row.owner_email,
+      access_type: "one_time_share",
+      share_id: row.share_id,
+      shared_at: row.shared_at,
+      share_mode: row.share_mode,
+      max_access_count: row.max_access_count,
+    });
+  }
+
+  const policyResult = await query(
+    `SELECT files.id AS file_id,
+            files.filename,
+            files.security_level,
+            files.created_at,
+            files.policy,
+            users.email AS owner_email
+     FROM files
+     LEFT JOIN users ON users.id = files.owner_id
+     WHERE files.owner_id <> $1
+       AND files.is_destroyed = FALSE
+     ORDER BY files.created_at DESC`,
+    [user.sub]
+  );
+
+  for (const row of policyResult.rows) {
+    if (accessibleById.has(row.file_id)) {
+      continue;
+    }
+    const policyCheck = evaluatePolicy(user, row.policy);
+    if (!policyCheck.allowed) {
+      continue;
+    }
+    accessibleById.set(row.file_id, {
+      file_id: row.file_id,
+      filename: row.filename,
+      security_level: row.security_level,
+      created_at: row.created_at,
+      owner_email: row.owner_email,
+      access_type: "policy",
+    });
+  }
+
+  return [...accessibleById.values()].sort(
+    (a, b) => new Date(b.shared_at || b.created_at).getTime() - new Date(a.shared_at || a.created_at).getTime()
+  );
+}
+
 function fillSeries(rows, days = 7) {
   const today = new Date();
   const map = new Map(rows.map((row) => [row.day, Number(row.count)]));
@@ -626,7 +776,10 @@ async function handleLogin(request) {
         clearance: user.clearance,
       },
     });
-  } catch {
+  } catch (error) {
+    if (isRetryableBootstrapError(error)) {
+      return serviceWarmingUpResponse();
+    }
     return json({ error: "Login failed" }, { status: 500 });
   }
 }
@@ -1009,17 +1162,7 @@ async function handleApiRequestInternal(request, path) {
         "SELECT * FROM files WHERE owner_id = $1 AND is_destroyed = FALSE ORDER BY created_at DESC",
         [userId]
       );
-      const sharedWithMe = await query(
-        `SELECT files.*, shares.id AS share_id, shares.permission, shares.share_mode, shares.access_count,
-                shares.max_access_count, shares.created_at AS shared_at
-         FROM shares
-         JOIN files ON files.id = shares.file_id
-         WHERE shares.recipient_id = $1
-           AND shares.consumed_at IS NULL
-           AND files.is_destroyed = FALSE
-         ORDER BY shares.created_at DESC`,
-        [userId]
-      );
+      const sharedWithMe = await listAccessibleFilesForUser(auth.user);
       const sharedByMe = await query(
         `SELECT files.*, shares.id AS share_id, shares.recipient_id, shares.permission, shares.share_mode,
                 shares.access_count, shares.max_access_count, shares.created_at AS shared_at,
@@ -1034,11 +1177,23 @@ async function handleApiRequestInternal(request, path) {
 
       return json({
         owned: owned.rows,
-        sharedWithMe: sharedWithMe.rows,
+        sharedWithMe,
         sharedByMe: sharedByMe.rows,
       });
     } catch {
       return json({ error: "Failed to load user files" }, { status: 500 });
+    }
+  }
+
+  if (method === "GET" && path.length === 3 && segment0 === "user" && segment1 === "accessible" && segment2 === "files") {
+    const auth = await authorizeRequest(request);
+    if (auth.response) return auth.response;
+
+    try {
+      const files = await listAccessibleFilesForUser(auth.user);
+      return json({ files });
+    } catch {
+      return json({ error: "Failed to load accessible files" }, { status: 500 });
     }
   }
 
@@ -1569,7 +1724,16 @@ async function handleApiRequestInternal(request, path) {
 }
 
 export async function handleApiRequest(request, path) {
-  await ensurePlatformReady();
+  try {
+    await ensurePlatformReady();
+  } catch (error) {
+    console.error("Platform warmup failed", error);
+    if (isRetryableBootstrapError(error)) {
+      return serviceWarmingUpResponse();
+    }
+    return json({ error: "Internal server error" }, { status: 500 });
+  }
+
   try {
     return await handleApiRequestInternal(request, path);
   } catch (error) {
