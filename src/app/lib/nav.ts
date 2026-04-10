@@ -1,5 +1,6 @@
-﻿export const adminNav = [
+export const adminNav = [
   { label: "Dashboard", href: "/admin/dashboard" },
+  { label: "Detection Results", href: "/admin/detection-results" },
   { label: "User Management", href: "/admin/user-management" },
   { label: "ABAC Policies", href: "/admin/policy-editor" },
   { label: "Audit Logs", href: "/admin/audit-logs" },

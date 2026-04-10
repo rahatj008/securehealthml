@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { query } from "./db.js";
 import { signToken, verifyToken, hashPassword, verifyPassword } from "./auth.js";
 import { evaluatePolicy } from "./abac.js";
@@ -32,6 +34,12 @@ const DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || "admin@secureheal
 const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || "Admin123!";
 const DEFAULT_CLINICIAN_EMAIL = process.env.DEFAULT_CLINICIAN_EMAIL || "clinician@securehealth.local";
 const DEFAULT_CLINICIAN_PASSWORD = process.env.DEFAULT_CLINICIAN_PASSWORD || "Clinician123!";
+const DEFAULT_TRAINING_METRICS_PATH = path.resolve(
+  process.cwd(),
+  "ai_model_training",
+  "artifacts",
+  "training_metrics.json"
+);
 const ALLOWED_UPLOAD_TYPES = [
   {
     extensions: [".pdf"],
@@ -661,6 +669,87 @@ function fillSeries(rows, days = 7) {
   }
 
   return data;
+}
+
+function normalizeMetricValue(value) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : 0;
+}
+
+function normalizeConfusionMatrix(value) {
+  if (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((row) => Array.isArray(row) && row.length === 2)
+  ) {
+    return value.map((row) => row.map((entry) => normalizeMetricValue(entry)));
+  }
+
+  return [
+    [0, 0],
+    [0, 0],
+  ];
+}
+
+function normalizeDetectionResults(rawMetrics) {
+  const results = rawMetrics?.results && typeof rawMetrics.results === "object" ? rawMetrics.results : {};
+  const deployedModel = String(rawMetrics?.best_model || "").trim();
+
+  const models = Object.entries(results)
+    .map(([name, metrics]) => ({
+      name,
+      accuracy: normalizeMetricValue(metrics?.accuracy),
+      precision: normalizeMetricValue(metrics?.precision),
+      recall: normalizeMetricValue(metrics?.recall),
+      f1: normalizeMetricValue(metrics?.f1),
+      rocAuc: normalizeMetricValue(metrics?.roc_auc),
+      confusionMatrix: normalizeConfusionMatrix(metrics?.confusion_matrix),
+    }))
+    .sort((a, b) => Number(b.name === deployedModel) - Number(a.name === deployedModel));
+
+  const currentModel = models.find((model) => model.name === deployedModel) || models[0] || null;
+
+  return {
+    dataset: {
+      rows: normalizeMetricValue(rawMetrics?.dataset_rows),
+      trainRows: normalizeMetricValue(rawMetrics?.train_rows),
+      testRows: normalizeMetricValue(rawMetrics?.test_rows),
+      targetColumn: String(rawMetrics?.target_column || ""),
+      droppedColumns: Array.isArray(rawMetrics?.dropped_columns) ? rawMetrics.dropped_columns : [],
+      savedModelPath: String(rawMetrics?.saved_model_path || ""),
+    },
+    deployedModel,
+    currentModel,
+    models,
+  };
+}
+
+async function loadDetectionResults() {
+  const metricsPath = path.resolve(process.env.TRAINING_METRICS_PATH || DEFAULT_TRAINING_METRICS_PATH);
+
+  try {
+    const raw = JSON.parse(await fs.readFile(metricsPath, "utf8"));
+    return normalizeDetectionResults(raw);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return {
+        error: `Training metrics file not found at ${metricsPath}.`,
+        status: 500,
+      };
+    }
+
+    if (error instanceof SyntaxError) {
+      return {
+        error: `Training metrics file at ${metricsPath} is not valid JSON.`,
+        status: 500,
+      };
+    }
+
+    return {
+      error: "Failed to load training metrics.",
+      status: 500,
+    };
+  }
 }
 
 function toDownloadBody(value) {
@@ -1624,6 +1713,14 @@ async function handleApiRequestInternal(request, path) {
       } catch {
         return json({ error: "Failed to load analytics" }, { status: 500 });
       }
+    }
+
+    if (method === "GET" && path.length === 2 && segment1 === "detection-results") {
+      const detectionResults = await loadDetectionResults();
+      if (detectionResults?.error) {
+        return json({ error: detectionResults.error }, { status: detectionResults.status || 500 });
+      }
+      return json(detectionResults);
     }
 
     if (method === "GET" && path.length === 3 && segment1 === "logs" && segment2 === "audit") {
