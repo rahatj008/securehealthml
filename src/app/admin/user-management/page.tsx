@@ -14,6 +14,8 @@ type UserRow = {
   department: string;
   clearance: number;
   is_active: boolean;
+  mfa_enabled?: boolean;
+  mfa_method?: string | null;
 };
 
 type UserDraft = {
@@ -194,6 +196,23 @@ export default function UserManagementPage() {
     }
   }
 
+  async function resetMfa(id: string, email: string) {
+    const confirmed = window.confirm(`Reset MFA for ${email}? They will be able to sign in with password only until MFA is re-enabled.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/admin/users/${id}/mfa/reset`, token || undefined, {
+        method: "POST",
+      });
+      setMessage(`MFA reset for ${email}.`);
+      await loadUsers();
+    } catch (err) {
+      setMessage((err as Error).message);
+    }
+  }
+
   if (!ready || !user) {
     return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>;
   }
@@ -347,14 +366,23 @@ export default function UserManagementPage() {
                       <p className="text-base font-semibold text-slate-900">{u.email}</p>
                       <p className="mt-1 text-sm text-slate-500">{u.full_name}</p>
                     </div>
-                    <button
-                      onClick={() => patchDraft(u.id, { is_active: !d.is_active })}
-                      className={`status-pill ${
-                        d.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
-                      }`}
-                    >
-                      {d.is_active ? "Active" : "Disabled"}
-                    </button>
+                    <div className="flex flex-col items-end gap-2">
+                      <button
+                        onClick={() => patchDraft(u.id, { is_active: !d.is_active })}
+                        className={`status-pill ${
+                          d.is_active ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                        }`}
+                      >
+                        {d.is_active ? "Active" : "Disabled"}
+                      </button>
+                      <span
+                        className={`status-pill ${
+                          u.mfa_enabled ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {u.mfa_enabled ? "MFA on" : "MFA off"}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-3">
@@ -409,6 +437,12 @@ export default function UserManagementPage() {
                     >
                       Save user
                     </button>
+                    <button
+                      onClick={() => resetMfa(u.id, u.email)}
+                      className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800"
+                    >
+                      Reset MFA
+                    </button>
                   </div>
                 </div>
               );
@@ -428,7 +462,9 @@ export default function UserManagementPage() {
                 <th className="px-4 py-3">Dept</th>
                 <th className="px-4 py-3">Clearance</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">MFA</th>
                 <th className="px-4 py-3">Reset password</th>
+                <th className="px-4 py-3">Recovery</th>
                 <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
@@ -495,6 +531,15 @@ export default function UserManagementPage() {
                       </button>
                     </td>
                     <td className="px-4 py-3">
+                      <span
+                        className={`status-pill ${
+                          u.mfa_enabled ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {u.mfa_enabled ? "Email OTP" : "Off"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
                       <input
                         type="password"
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
@@ -502,6 +547,14 @@ export default function UserManagementPage() {
                         value={d.password}
                         onChange={(e) => patchDraft(u.id, { password: e.target.value })}
                       />
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => resetMfa(u.id, u.email)}
+                        className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"
+                      >
+                        Reset MFA
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <button

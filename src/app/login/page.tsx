@@ -5,20 +5,59 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "../lib/api";
 import { StoredUser } from "../lib/auth";
 
-type LoginResponse = {
+type LoginSuccessResponse = {
   token: string;
   user: StoredUser;
 };
 
+type LoginMfaChallengeResponse = {
+  mfaRequired: true;
+  challengeId: string;
+  maskedEmail: string;
+  method: "email_otp";
+};
+
+type LoginMfaResendResponse = {
+  message?: string;
+  challengeId: string;
+  maskedEmail: string;
+  method: "email_otp";
+};
+
+type LoginResponse = LoginSuccessResponse | LoginMfaChallengeResponse;
+
+type Notice = {
+  tone: "error" | "info";
+  text: string;
+};
+
+function isMfaChallengeResponse(value: LoginResponse): value is LoginMfaChallengeResponse {
+  return "mfaRequired" in value;
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<"credentials" | "mfa">("credentials");
   const [form, setForm] = useState({ email: "", password: "" });
+  const [mfa, setMfa] = useState({
+    challengeId: "",
+    maskedEmail: "",
+    code: "",
+    backupCode: "",
+    useBackupCode: false,
+  });
 
-  async function handleSubmit(e: React.FormEvent) {
+  function finishLogin(data: LoginSuccessResponse) {
+    localStorage.setItem("securhealth_token", data.token);
+    localStorage.setItem("securhealth_user", JSON.stringify(data.user));
+    router.push(data.user.role === "admin" ? "/admin/dashboard" : "/user/dashboard");
+  }
+
+  async function handleCredentialsSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setMessage("");
+    setNotice(null);
     setLoading(true);
 
     try {
@@ -31,15 +70,101 @@ export default function LoginPage() {
         }),
       });
 
-      localStorage.setItem("securhealth_token", data.token);
-      localStorage.setItem("securhealth_user", JSON.stringify(data.user));
+      if (isMfaChallengeResponse(data)) {
+        setStep("mfa");
+        setMfa({
+          challengeId: data.challengeId,
+          maskedEmail: data.maskedEmail,
+          code: "",
+          backupCode: "",
+          useBackupCode: false,
+        });
+        setNotice({
+          tone: "info",
+          text: `A 6-digit verification code was sent to ${data.maskedEmail}.`,
+        });
+        return;
+      }
 
-      router.push(data.user.role === "admin" ? "/admin/dashboard" : "/user/dashboard");
+      finishLogin(data);
     } catch (err) {
-      setMessage((err as Error).message || "Authentication failed");
+      setNotice({ tone: "error", text: (err as Error).message || "Authentication failed" });
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setNotice(null);
+    setLoading(true);
+
+    try {
+      const data = mfa.useBackupCode
+        ? await apiFetch<LoginSuccessResponse>("/auth/login/mfa/backup", undefined, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: form.email,
+              backupCode: mfa.backupCode,
+            }),
+          })
+        : await apiFetch<LoginSuccessResponse>("/auth/login/mfa/verify", undefined, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              challengeId: mfa.challengeId,
+              code: mfa.code,
+            }),
+          });
+
+      finishLogin(data);
+    } catch (err) {
+      setNotice({ tone: "error", text: (err as Error).message || "Verification failed" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResendCode() {
+    setNotice(null);
+    setLoading(true);
+
+    try {
+      const data = await apiFetch<LoginMfaResendResponse>("/auth/login/mfa/resend", undefined, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challengeId: mfa.challengeId,
+        }),
+      });
+      setMfa((current) => ({
+        ...current,
+        challengeId: data.challengeId,
+        maskedEmail: data.maskedEmail,
+        code: "",
+      }));
+      setNotice({
+        tone: "info",
+        text: data.message || `A new verification code was sent to ${data.maskedEmail}.`,
+      });
+    } catch (err) {
+      setNotice({ tone: "error", text: (err as Error).message || "Unable to resend the code." });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetMfaStep() {
+    setStep("credentials");
+    setMfa({
+      challengeId: "",
+      maskedEmail: "",
+      code: "",
+      backupCode: "",
+      useBackupCode: false,
+    });
+    setNotice(null);
   }
 
   return (
@@ -64,7 +189,7 @@ export default function LoginPage() {
               "Policy-driven access based on role, department, and clearance",
               "Live PDF model plus YARA and ClamAV screening during upload",
               "One-time share links that erase files after first secure access",
-              "Local demo mode or AWS S3-backed storage for deployment",
+              "Optional email OTP MFA with backup-code recovery",
             ].map((item) => (
               <div
                 key={item}
@@ -80,49 +205,124 @@ export default function LoginPage() {
           <div className="surface-card-strong w-full rounded-[2rem] p-6 sm:p-8">
             <div className="rounded-[1.6rem] bg-blue-50 px-4 py-4 text-sm text-blue-800">
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Unified gateway</p>
-              <p className="mt-2 font-semibold">Sign in to the administrator console or clinician workspace.</p>
-            </div>
-
-            <div className="mt-6">
-              <p className="text-2xl font-semibold text-slate-900">Sign in</p>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Use your seeded demo account or your assigned credentials to enter the secure platform.
+              <p className="mt-2 font-semibold">
+                {step === "credentials"
+                  ? "Sign in to the administrator console or clinician workspace."
+                  : "Complete the verification step before entering the secure platform."}
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Email</span>
-                <input
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                  placeholder="Enter your email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </label>
+            <div className="mt-6">
+              <p className="text-2xl font-semibold text-slate-900">
+                {step === "credentials" ? "Sign in" : "Verify your login"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                {step === "credentials"
+                  ? "Use your seeded demo account or your assigned credentials to enter the secure platform."
+                  : `Finish sign-in for ${mfa.maskedEmail || form.email} using the email code or one of your backup codes.`}
+              </p>
+            </div>
 
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Password</span>
-                <input
-                  type="password"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                  placeholder="Enter your password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-              </label>
+            {step === "credentials" ? (
+              <form onSubmit={handleCredentialsSubmit} className="mt-6 space-y-4">
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-slate-700">Email</span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    placeholder="Enter your email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  />
+                </label>
 
-              <button
-                disabled={loading}
-                className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-slate-700">Password</span>
+                  <input
+                    type="password"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    placeholder="Enter your password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                </label>
+
+                <button
+                  disabled={loading}
+                  className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "Validating..." : "Enter Secure Platform"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleMfaSubmit} className="mt-6 space-y-4">
+                <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  Verification email: <span className="font-semibold text-slate-900">{mfa.maskedEmail}</span>
+                </div>
+
+                {!mfa.useBackupCode ? (
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-slate-700">6-digit verification code</span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      placeholder="Enter the code from your email"
+                      value={mfa.code}
+                      onChange={(e) => setMfa({ ...mfa, code: e.target.value })}
+                    />
+                  </label>
+                ) : (
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-slate-700">Backup code</span>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      placeholder="Enter one of your saved backup codes"
+                      value={mfa.backupCode}
+                      onChange={(e) => setMfa({ ...mfa, backupCode: e.target.value.toUpperCase() })}
+                    />
+                  </label>
+                )}
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loading ? "Checking..." : mfa.useBackupCode ? "Use backup code" : "Verify and sign in"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    disabled={loading || mfa.useBackupCode}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Resend code
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setMfa((current) => ({ ...current, useBackupCode: !current.useBackupCode }))}
+                    className="text-left font-semibold text-blue-700"
+                  >
+                    {mfa.useBackupCode ? "Use the emailed code instead" : "Use a backup code instead"}
+                  </button>
+                  <button type="button" onClick={resetMfaStep} className="text-left font-medium text-slate-500">
+                    Use a different account
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {notice ? (
+              <div
+                className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                  notice.tone === "error"
+                    ? "border border-rose-100 bg-rose-50 text-rose-700"
+                    : "border border-blue-100 bg-blue-50 text-blue-700"
+                }`}
               >
-                {loading ? "Validating..." : "Enter Secure Platform"}
-              </button>
-            </form>
-
-            {message ? (
-              <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {message}
+                {notice.text}
               </div>
             ) : null}
           </div>

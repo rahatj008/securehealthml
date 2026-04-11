@@ -1,5 +1,6 @@
 export const adminNav = [
   { label: "Dashboard", href: "/admin/dashboard" },
+  { label: "Security", href: "/security" },
   { label: "Detection Results", href: "/admin/detection-results" },
   { label: "User Management", href: "/admin/user-management" },
   { label: "ABAC Policies", href: "/admin/policy-editor" },
@@ -12,6 +13,7 @@ export const adminNav = [
 
 export const userNav = [
   { label: "Dashboard", href: "/user/dashboard" },
+  { label: "Security", href: "/security" },
   { label: "Shared With Me", href: "/user/shared-with-me" },
   { label: "Shared By Me", href: "/user/shared-by-me" },
 ];

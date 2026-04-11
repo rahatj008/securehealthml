@@ -6,6 +6,20 @@ import { evaluatePolicy } from "./abac.js";
 import { assessSecurity, sendFeedback } from "./ml.js";
 import { uploadToS3, downloadFromS3, deleteFromS3 } from "./s3.js";
 import { uuidv4 } from "./backend-require.js";
+import {
+  MFA_METHOD_EMAIL_OTP,
+  MFA_PURPOSE_ENABLE,
+  MFA_PURPOSE_LOGIN,
+  countRemainingBackupCodes,
+  createMfaChallenge,
+  consumeBackupCode,
+  consumeLoginChallenges,
+  hasActiveLoginChallenge,
+  replaceBackupCodes,
+  resendMfaChallenge,
+  resetUserMfaState,
+  verifyMfaChallenge,
+} from "./mfa.js";
 
 const AUTH_RISK_BLOCK_THRESHOLD = Number(process.env.AUTH_RISK_BLOCK_THRESHOLD || 0.98);
 const AUTH_RISK_MIN_FAILED_COUNT = Number(process.env.AUTH_RISK_MIN_FAILED_COUNT || 4);
@@ -40,6 +54,8 @@ const DEFAULT_TRAINING_METRICS_PATH = path.resolve(
   "artifacts",
   "training_metrics.json"
 );
+const MFA_STATUS_ENABLED = "enabled";
+const MFA_STATUS_DISABLED = "disabled";
 const ALLOWED_UPLOAD_TYPES = [
   {
     extensions: [".pdf"],
@@ -207,6 +223,8 @@ async function ensureSchema() {
       department TEXT NOT NULL,
       clearance INTEGER NOT NULL,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      mfa_method TEXT DEFAULT 'email_otp',
       created_at TIMESTAMP DEFAULT NOW()
     );
 
@@ -280,7 +298,29 @@ async function ensureSchema() {
       created_at TIMESTAMP DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS mfa_challenges (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      purpose TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      delivery_email TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      consumed_at TIMESTAMP,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS mfa_backup_codes (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      consumed_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_method TEXT DEFAULT 'email_otp';
     ALTER TABLE files ADD COLUMN IF NOT EXISTS is_destroyed BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE files ADD COLUMN IF NOT EXISTS destroyed_at TIMESTAMP;
     ALTER TABLE files ADD COLUMN IF NOT EXISTS destroyed_reason TEXT;
@@ -406,12 +446,74 @@ function buildContentFeatures({ file, securityLevel }) {
   };
 }
 
+function toAuthUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    full_name: user.full_name,
+    role: user.role,
+    department: user.department,
+    clearance: user.clearance,
+  };
+}
+
+async function getUserById(userId) {
+  const result = await query(
+    `SELECT id, email, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method
+     FROM users
+     WHERE id = $1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
+async function getUserByIdWithSecrets(userId) {
+  const result = await query(
+    `SELECT id, email, password_hash, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method
+     FROM users
+     WHERE id = $1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
 async function getUserByEmail(email) {
   const result = await query(
-    "SELECT id, email, full_name, role, department, clearance, is_active FROM users WHERE email = $1",
+    `SELECT id, email, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method
+     FROM users
+     WHERE email = $1`,
     [email]
   );
-  return result.rows[0];
+  return result.rows[0] || null;
+}
+
+async function getUserByEmailWithSecrets(email) {
+  const result = await query(
+    `SELECT id, email, password_hash, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method
+     FROM users
+     WHERE email = $1`,
+    [email]
+  );
+  return result.rows[0] || null;
+}
+
+async function verifyCurrentPasswordForUser(userId, currentPassword) {
+  const password = String(currentPassword || "").trim();
+  if (!password) {
+    return { error: "Current password is required", status: 400 };
+  }
+
+  const user = await getUserByIdWithSecrets(userId);
+  if (!user || !user.is_active) {
+    return { error: "User not found", status: 404 };
+  }
+
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) {
+    return { error: "Current password is incorrect", status: 401 };
+  }
+
+  return { user };
 }
 
 async function resetUserPassword(userId, password) {
@@ -425,7 +527,7 @@ async function resetUserPassword(userId, password) {
     `UPDATE users
      SET password_hash = $1
      WHERE id = $2
-     RETURNING id, email, full_name, role, department, clearance, is_active, created_at`,
+     RETURNING id, email, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method, created_at`,
     [passwordHash, userId]
   );
 
@@ -759,6 +861,14 @@ function toDownloadBody(value) {
   return new Uint8Array(value);
 }
 
+function createLoginSuccessResponse(user) {
+  const authUser = toAuthUser(user);
+  return {
+    token: signToken(authUser),
+    user: authUser,
+  };
+}
+
 async function handleLogin(request) {
   try {
     const body = await parseJson(request);
@@ -767,11 +877,7 @@ async function handleLogin(request) {
       return json({ error: "Email and password required" }, { status: 400 });
     }
 
-    const userResult = await query(
-      "SELECT id, email, password_hash, full_name, role, department, clearance, is_active FROM users WHERE email = $1",
-      [email]
-    );
-    const user = userResult.rows[0] || null;
+    const user = await getUserByEmailWithSecrets(email);
 
     const failedCountResult = await query(
       `SELECT COUNT(*)
@@ -844,6 +950,45 @@ async function handleLogin(request) {
       return json({ error: "Suspicious authentication activity detected" }, { status: 403 });
     }
 
+    if (user.mfa_enabled) {
+      try {
+        const challenge = await createMfaChallenge({
+          userId: user.id,
+          deliveryEmail: user.email,
+          purpose: MFA_PURPOSE_LOGIN,
+        });
+
+        await logAccess({
+          userId: user.id,
+          fileId: null,
+          action: "login",
+          decision: "pending",
+          reason: "MFA verification required",
+          request,
+        });
+
+        return json({
+          mfaRequired: true,
+          challengeId: challenge.challengeId,
+          maskedEmail: challenge.maskedEmail,
+          method: challenge.method,
+        });
+      } catch (error) {
+        await logAccess({
+          userId: user.id,
+          fileId: null,
+          action: "login",
+          decision: "denied",
+          reason: "MFA delivery unavailable",
+          request,
+        });
+        return json(
+          { error: error?.message || "Unable to deliver the verification code right now." },
+          { status: error?.status || 503 }
+        );
+      }
+    }
+
     await logAccess({
       userId: user.id,
       fileId: null,
@@ -853,23 +998,334 @@ async function handleLogin(request) {
       request,
     });
 
-    const token = signToken(user);
-    return json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        full_name: user.full_name,
-        role: user.role,
-        department: user.department,
-        clearance: user.clearance,
-      },
-    });
+    return json(createLoginSuccessResponse(user));
   } catch (error) {
     if (isRetryableBootstrapError(error)) {
       return serviceWarmingUpResponse();
     }
     return json({ error: "Login failed" }, { status: 500 });
+  }
+}
+
+async function handleLoginMfaVerify(request) {
+  try {
+    const body = await parseJson(request);
+    const challengeId = String(body?.challengeId || "").trim();
+    const code = String(body?.code || "").trim();
+
+    if (!challengeId || !code) {
+      return json({ error: "challengeId and code are required" }, { status: 400 });
+    }
+
+    const verification = await verifyMfaChallenge({
+      challengeId,
+      code,
+      purpose: MFA_PURPOSE_LOGIN,
+    });
+    const user = await getUserById(verification.userId);
+    if (!user || !user.is_active) {
+      return json({ error: "Inactive account" }, { status: 401 });
+    }
+    if (!user.mfa_enabled) {
+      return json({ error: "MFA is no longer enabled for this account." }, { status: 409 });
+    }
+
+    await logAccess({
+      userId: user.id,
+      fileId: null,
+      action: "login",
+      decision: "allowed",
+      reason: "Authenticated with MFA",
+      request,
+    });
+
+    return json(createLoginSuccessResponse(user));
+  } catch (error) {
+    if (error?.status) {
+      return json({ error: error.message }, { status: error.status });
+    }
+    return json({ error: "MFA verification failed" }, { status: 500 });
+  }
+}
+
+async function handleLoginMfaBackup(request) {
+  try {
+    const body = await parseJson(request);
+    const email = String(body?.email || "").trim();
+    const backupCode = String(body?.backupCode || "").trim();
+
+    if (!email || !backupCode) {
+      return json({ error: "email and backupCode are required" }, { status: 400 });
+    }
+
+    const user = await getUserByEmail(email);
+    if (!user || !user.is_active) {
+      return json({ error: "Invalid credentials" }, { status: 401 });
+    }
+    if (!user.mfa_enabled) {
+      return json({ error: "MFA is not enabled for this account." }, { status: 400 });
+    }
+
+    const loginStarted = await hasActiveLoginChallenge(user.id);
+    if (!loginStarted) {
+      return json({ error: "Start the password step first before using a backup code." }, { status: 400 });
+    }
+
+    const consumed = await consumeBackupCode({
+      userId: user.id,
+      backupCode,
+    });
+
+    if (!consumed) {
+      await logAccess({
+        userId: user.id,
+        fileId: null,
+        action: "login",
+        decision: "denied",
+        reason: "Invalid MFA backup code",
+        request,
+      });
+      return json({ error: "Invalid backup code" }, { status: 401 });
+    }
+
+    await consumeLoginChallenges(user.id);
+    await logAccess({
+      userId: user.id,
+      fileId: null,
+      action: "login",
+      decision: "allowed",
+      reason: "Authenticated with MFA backup code",
+      request,
+    });
+
+    return json(createLoginSuccessResponse(user));
+  } catch {
+    return json({ error: "Backup code verification failed" }, { status: 500 });
+  }
+}
+
+async function handleLoginMfaResend(request) {
+  try {
+    const body = await parseJson(request);
+    const challengeId = String(body?.challengeId || "").trim();
+    if (!challengeId) {
+      return json({ error: "challengeId is required" }, { status: 400 });
+    }
+
+    const challenge = await resendMfaChallenge({
+      challengeId,
+      purpose: MFA_PURPOSE_LOGIN,
+    });
+
+    return json({
+      message: "A new verification code has been sent.",
+      challengeId: challenge.challengeId,
+      maskedEmail: challenge.maskedEmail,
+      method: challenge.method,
+    });
+  } catch (error) {
+    if (error?.status) {
+      return json({ error: error.message }, { status: error.status });
+    }
+    return json({ error: "Unable to resend the verification code" }, { status: 500 });
+  }
+}
+
+async function handleAccountSecurity(currentUser) {
+  try {
+    const account = await getUserById(currentUser.sub);
+    if (!account) {
+      return json({ error: "User not found" }, { status: 404 });
+    }
+
+    const backupCodesRemaining = account.mfa_enabled ? await countRemainingBackupCodes(account.id) : 0;
+    return json({
+      mfaEnabled: Boolean(account.mfa_enabled),
+      mfaStatus: account.mfa_enabled ? MFA_STATUS_ENABLED : MFA_STATUS_DISABLED,
+      method: account.mfa_enabled ? account.mfa_method || MFA_METHOD_EMAIL_OTP : null,
+      backupCodesRemaining,
+    });
+  } catch {
+    return json({ error: "Failed to load security settings" }, { status: 500 });
+  }
+}
+
+async function handleStartMfaEnable(request, currentUser) {
+  try {
+    const account = await getUserById(currentUser.sub);
+    if (!account) {
+      return json({ error: "User not found" }, { status: 404 });
+    }
+    if (account.mfa_enabled) {
+      return json({ error: "MFA is already enabled for this account." }, { status: 409 });
+    }
+
+    const challenge = await createMfaChallenge({
+      userId: account.id,
+      deliveryEmail: account.email,
+      purpose: MFA_PURPOSE_ENABLE,
+    });
+
+    return json({
+      message: "A setup code has been sent to your email.",
+      challengeId: challenge.challengeId,
+      maskedEmail: challenge.maskedEmail,
+      method: challenge.method,
+    });
+  } catch (error) {
+    if (error?.status) {
+      return json({ error: error.message }, { status: error.status });
+    }
+    return json({ error: "Unable to start MFA setup" }, { status: 500 });
+  }
+}
+
+async function handleVerifyMfaEnable(request, currentUser) {
+  try {
+    const body = await parseJson(request);
+    const challengeId = String(body?.challengeId || "").trim();
+    const code = String(body?.code || "").trim();
+
+    if (!challengeId || !code) {
+      return json({ error: "challengeId and code are required" }, { status: 400 });
+    }
+
+    const verification = await verifyMfaChallenge({
+      challengeId,
+      code,
+      purpose: MFA_PURPOSE_ENABLE,
+    });
+
+    if (verification.userId !== currentUser.sub) {
+      return json({ error: "Verification code does not belong to this account." }, { status: 403 });
+    }
+
+    const account = await getUserById(currentUser.sub);
+    if (!account) {
+      return json({ error: "User not found" }, { status: 404 });
+    }
+    if (account.mfa_enabled) {
+      return json({ error: "MFA is already enabled for this account." }, { status: 409 });
+    }
+
+    await query(
+      `UPDATE users
+       SET mfa_enabled = TRUE,
+           mfa_method = $2
+       WHERE id = $1`,
+      [currentUser.sub, MFA_METHOD_EMAIL_OTP]
+    );
+    const backupCodes = await replaceBackupCodes(currentUser.sub);
+
+    await logAccess({
+      userId: currentUser.sub,
+      fileId: null,
+      action: "mfa_enable",
+      decision: "allowed",
+      reason: "Email OTP MFA enabled",
+      request,
+    });
+
+    return json({
+      message: "Multi-factor authentication enabled.",
+      mfaEnabled: true,
+      method: MFA_METHOD_EMAIL_OTP,
+      backupCodes,
+    });
+  } catch (error) {
+    if (error?.status) {
+      return json({ error: error.message }, { status: error.status });
+    }
+    return json({ error: "Unable to enable MFA" }, { status: 500 });
+  }
+}
+
+async function handleDisableMfa(request, currentUser) {
+  try {
+    const body = await parseJson(request);
+    const passwordCheck = await verifyCurrentPasswordForUser(currentUser.sub, body?.currentPassword);
+    if (passwordCheck.error) {
+      return json({ error: passwordCheck.error }, { status: passwordCheck.status || 400 });
+    }
+
+    await resetUserMfaState(currentUser.sub);
+    await logAccess({
+      userId: currentUser.sub,
+      fileId: null,
+      action: "mfa_disable",
+      decision: "allowed",
+      reason: "MFA disabled by user",
+      request,
+    });
+
+    return json({
+      message: "Multi-factor authentication disabled.",
+      mfaEnabled: false,
+      method: null,
+    });
+  } catch {
+    return json({ error: "Unable to disable MFA" }, { status: 500 });
+  }
+}
+
+async function handleRegenerateBackupCodes(request, currentUser) {
+  try {
+    const body = await parseJson(request);
+    const passwordCheck = await verifyCurrentPasswordForUser(currentUser.sub, body?.currentPassword);
+    if (passwordCheck.error) {
+      return json({ error: passwordCheck.error }, { status: passwordCheck.status || 400 });
+    }
+    if (!passwordCheck.user.mfa_enabled) {
+      return json({ error: "Enable MFA before generating backup codes." }, { status: 409 });
+    }
+
+    const backupCodes = await replaceBackupCodes(currentUser.sub);
+    await logAccess({
+      userId: currentUser.sub,
+      fileId: null,
+      action: "mfa_backup_regenerate",
+      decision: "allowed",
+      reason: "Backup codes regenerated",
+      request,
+    });
+
+    return json({
+      message: "Backup codes regenerated.",
+      backupCodes,
+    });
+  } catch {
+    return json({ error: "Unable to regenerate backup codes" }, { status: 500 });
+  }
+}
+
+async function handleAdminResetMfa(request, currentUser, userId) {
+  try {
+    const account = await getUserById(userId);
+    if (!account) {
+      return json({ error: "User not found" }, { status: 404 });
+    }
+
+    await resetUserMfaState(userId);
+    await logAccess({
+      userId: currentUser.sub,
+      fileId: null,
+      action: "mfa_reset",
+      decision: "allowed",
+      reason: `Reset MFA for ${account.email}`,
+      request,
+    });
+
+    return json({
+      message: `MFA reset for ${account.email}.`,
+      user: {
+        ...toAuthUser(account),
+        is_active: account.is_active,
+        mfa_enabled: false,
+        mfa_method: MFA_METHOD_EMAIL_OTP,
+      },
+    });
+  } catch {
+    return json({ error: "Failed to reset MFA" }, { status: 500 });
   }
 }
 
@@ -1209,7 +1665,7 @@ async function handleDeleteFile(request, currentUser, fileId) {
 }
 
 async function handleApiRequestInternal(request, path) {
-  const [segment0, segment1, segment2, segment3] = path;
+  const [segment0, segment1, segment2, segment3, segment4] = path;
   const method = request.method;
 
   if (method === "GET" && path.length === 1 && segment0 === "health") {
@@ -1222,6 +1678,39 @@ async function handleApiRequestInternal(request, path) {
 
   if (method === "POST" && path.length === 2 && segment0 === "auth" && segment1 === "login") {
     return handleLogin(request);
+  }
+
+  if (
+    method === "POST" &&
+    path.length === 4 &&
+    segment0 === "auth" &&
+    segment1 === "login" &&
+    segment2 === "mfa" &&
+    segment3 === "verify"
+  ) {
+    return handleLoginMfaVerify(request);
+  }
+
+  if (
+    method === "POST" &&
+    path.length === 4 &&
+    segment0 === "auth" &&
+    segment1 === "login" &&
+    segment2 === "mfa" &&
+    segment3 === "backup"
+  ) {
+    return handleLoginMfaBackup(request);
+  }
+
+  if (
+    method === "POST" &&
+    path.length === 4 &&
+    segment0 === "auth" &&
+    segment1 === "login" &&
+    segment2 === "mfa" &&
+    segment3 === "resend"
+  ) {
+    return handleLoginMfaResend(request);
   }
 
   if (method === "GET" && path.length === 2 && segment0 === "abac" && segment1 === "options") {
@@ -1284,6 +1773,66 @@ async function handleApiRequestInternal(request, path) {
     } catch {
       return json({ error: "Failed to load accessible files" }, { status: 500 });
     }
+  }
+
+  if (method === "GET" && path.length === 2 && segment0 === "account" && segment1 === "security") {
+    const auth = await authorizeRequest(request);
+    if (auth.response) return auth.response;
+    return handleAccountSecurity(auth.user);
+  }
+
+  if (
+    method === "POST" &&
+    path.length === 5 &&
+    segment0 === "account" &&
+    segment1 === "security" &&
+    segment2 === "mfa" &&
+    segment3 === "enable" &&
+    segment4 === "start"
+  ) {
+    const auth = await authorizeRequest(request);
+    if (auth.response) return auth.response;
+    return handleStartMfaEnable(request, auth.user);
+  }
+
+  if (
+    method === "POST" &&
+    path.length === 5 &&
+    segment0 === "account" &&
+    segment1 === "security" &&
+    segment2 === "mfa" &&
+    segment3 === "enable" &&
+    segment4 === "verify"
+  ) {
+    const auth = await authorizeRequest(request);
+    if (auth.response) return auth.response;
+    return handleVerifyMfaEnable(request, auth.user);
+  }
+
+  if (
+    method === "POST" &&
+    path.length === 4 &&
+    segment0 === "account" &&
+    segment1 === "security" &&
+    segment2 === "mfa" &&
+    segment3 === "disable"
+  ) {
+    const auth = await authorizeRequest(request);
+    if (auth.response) return auth.response;
+    return handleDisableMfa(request, auth.user);
+  }
+
+  if (
+    method === "POST" &&
+    path.length === 4 &&
+    segment0 === "account" &&
+    segment1 === "security" &&
+    segment2 === "mfa" &&
+    segment3 === "regenerate-backup-codes"
+  ) {
+    const auth = await authorizeRequest(request);
+    if (auth.response) return auth.response;
+    return handleRegenerateBackupCodes(request, auth.user);
   }
 
   if (method === "POST" && path.length === 1 && segment0 === "shares") {
@@ -1448,7 +1997,7 @@ async function handleApiRequestInternal(request, path) {
     if (method === "GET" && path.length === 2 && segment1 === "users") {
       try {
         const result = await query(
-          `SELECT id, email, full_name, role, department, clearance, is_active, created_at
+          `SELECT id, email, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method, created_at
            FROM users
            ORDER BY created_at DESC`
         );
@@ -1480,7 +2029,7 @@ async function handleApiRequestInternal(request, path) {
         const result = await query(
           `INSERT INTO users (email, password_hash, full_name, role, department, clearance, is_active)
            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-           RETURNING id, email, full_name, role, department, clearance, is_active, created_at`,
+           RETURNING id, email, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method, created_at`,
           [email, passwordHash, fullName, normalizedRole, normalizedDepartment, Number(clearance || 1)]
         );
         return json({ user: result.rows[0] });
@@ -1543,7 +2092,7 @@ async function handleApiRequestInternal(request, path) {
         const result = await query(
           `UPDATE users SET ${fields.join(", ")}
            WHERE id = $${fields.length + 1}
-           RETURNING id, email, full_name, role, department, clearance, is_active, created_at`,
+           RETURNING id, email, full_name, role, department, clearance, is_active, mfa_enabled, mfa_method, created_at`,
           values
         );
 
@@ -1589,6 +2138,16 @@ async function handleApiRequestInternal(request, path) {
       } catch {
         return json({ error: "Failed to reset password" }, { status: 500 });
       }
+    }
+
+    if (
+      method === "POST" &&
+      path.length === 5 &&
+      segment1 === "users" &&
+      segment3 === "mfa" &&
+      segment4 === "reset"
+    ) {
+      return handleAdminResetMfa(request, auth.user, segment2);
     }
 
     if (method === "GET" && path.length === 2 && segment1 === "policies") {
