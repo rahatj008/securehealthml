@@ -11,7 +11,7 @@
     "dev:services:down": "docker compose -f docker-compose.dev.yml down",
     "dev:services:logs": "docker compose -f docker-compose.dev.yml logs -f",
     "build": "next build --webpack",
-    "start": "PORT=3100 next start",
+    "start": "node scripts/start-prod-app.mjs",
     "lint": "eslint"
   },
   "dependencies": {

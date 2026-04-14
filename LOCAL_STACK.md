@@ -1,6 +1,6 @@
 # Local Demo Stack
 
-This repo can now run as a self-contained local stack with one command:
+This repo can run as a local Docker stack with one command:
 
 ```bash
 docker compose up --build
@@ -30,7 +30,8 @@ For day-to-day coding with fast reloads, use the development workflow in [DEV_WO
 
 ## Notes
 
-- Uploaded files are stored in a Docker volume through the local filesystem storage driver.
 - The app no longer needs external Postgres credentials to run in this local stack.
+- AWS S3 credentials are required because uploads, downloads, and deletes now use AWS S3 only.
+- The app will refuse to start if required AWS S3 env values are missing.
 - The ML service uses the trained PDF model from `ai_model_training/artifacts/pdf_malware_model.joblib`, YARA rules, and ClamAV.
 - On the first startup, the `clamav` container may take a while to warm up because it has to prepare its malware database.

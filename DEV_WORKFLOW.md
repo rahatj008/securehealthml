@@ -37,8 +37,9 @@ Local development uses [`.env.local`](/c:/Users/pc/Desktop/securehealthml/.env.l
 
 - Postgres on `localhost:5433`
 - ML service on `localhost:8001`
-- local filesystem storage instead of S3
+- AWS S3 storage for all uploaded files
 - seeded demo users enabled
+- the app will fail at startup if required AWS S3 env values are missing
 
 ## Useful commands
 

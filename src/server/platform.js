@@ -4,7 +4,7 @@ import { query } from "./db.js";
 import { signToken, verifyToken, hashPassword, verifyPassword } from "./auth.js";
 import { evaluatePolicy } from "./abac.js";
 import { assessSecurity, sendFeedback } from "./ml.js";
-import { uploadToS3, downloadFromS3, deleteFromS3 } from "./s3.js";
+import { uploadToS3, downloadFromS3, deleteFromS3, validateAwsS3Config } from "./s3.js";
 import { uuidv4 } from "./backend-require.js";
 import {
   MFA_METHOD_EMAIL_OTP,
@@ -211,6 +211,8 @@ async function parseJson(request) {
 }
 
 async function ensureSchema() {
+  validateAwsS3Config();
+
   await query(`
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

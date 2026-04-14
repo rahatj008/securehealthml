@@ -135,6 +135,9 @@ async function waitForDevServices() {
   await loadEnvFile(".env");
   await loadEnvFile(".env.local");
 
+  const { validateAwsS3Config } = await import("../src/server/s3.js");
+  validateAwsS3Config();
+
   const dbTarget = getDbTarget();
   const mlHealthUrl = getMlHealthUrl();
 

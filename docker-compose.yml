@@ -3,14 +3,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
+      - .env.local
     environment:
       DATABASE_URL: postgresql://securhealth:securhealth@db:5432/securhealth
       JWT_SECRET: local-demo-secret-change-me
       ML_SERVICE_URL: http://ml-service:8000
       AUTH_RISK_BLOCK_THRESHOLD: "0.98"
       AUTH_RISK_MIN_FAILED_COUNT: "4"
-      STORAGE_DRIVER: fs
-      LOCAL_STORAGE_ROOT: /app-data/uploads
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      S3_SERVER_SIDE_ENCRYPTION: ${S3_SERVER_SIDE_ENCRYPTION:-}
       SEED_DEFAULT_USERS: "true"
       DEFAULT_ADMIN_EMAIL: admin@securehealth.local
       DEFAULT_ADMIN_PASSWORD: Admin123!
@@ -24,8 +30,6 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
-    volumes:
-      - uploaded_files:/app-data/uploads
 
   db:
     image: postgres:16
@@ -80,6 +84,5 @@ services:
 
 volumes:
   db_data:
-  uploaded_files:
   ml_feedback:
   clamav_db:

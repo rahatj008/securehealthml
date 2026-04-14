@@ -10,7 +10,7 @@ The current project supports:
 - Role-aware dashboards for admin and clinician users
 - PDF malware detection with a trained machine learning model
 - YARA and ClamAV scanning layered on top of file-type validation
-- Local demo storage by default, with optional AWS S3 support for production-style deployments
+- AWS S3-backed storage for all uploads, downloads, and secure deletion flows
 
 ## Current Architecture
 
@@ -18,7 +18,7 @@ The current project supports:
 - `src/app/api/[...path]/route.ts`: catch-all API route that forwards requests into the server layer
 - `src/server/platform.js`: main backend flow for auth, uploads, downloads, shares, and logging
 - `src/server/db.js`: PostgreSQL connection
-- `src/server/s3.js`: storage adapter for local filesystem mode or AWS S3 mode
+- `src/server/s3.js`: AWS S3 storage adapter
 - `ml-service/`: FastAPI scanner service for PDF ML scoring, YARA, ClamAV, and rule-based checks
 - `ai_model_training/`: PDF malware training assets and saved model artifacts
 
@@ -63,7 +63,8 @@ Demo accounts:
 
 Notes:
 
-- The default Docker stack uses local filesystem storage, so no AWS credentials are required for local demos.
+- AWS S3 configuration is mandatory in both Docker and local dev modes.
+- The app will refuse to start until `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, and `AWS_S3_BUCKET` are set.
 - On first startup, ClamAV may take a while to warm up its malware database.
 
 More local-stack details are in [LOCAL_STACK.md](./LOCAL_STACK.md).
@@ -110,7 +111,7 @@ Dev notes:
 - PostgreSQL runs on `localhost:5433`
 - ML service runs on `http://localhost:8001`
 - ClamAV runs in Docker
-- local filesystem storage is used, so AWS credentials are not required
+- AWS S3 configuration is required even in local development
 - if you enable MFA, configure the SMTP variables in your env file so email OTP delivery can work
 - `npm run dev:app` now waits for Postgres and the ML service before launching Next.js, which avoids the flaky first-request startup failures we were seeing in dev
 - if you intentionally want to skip the wait logic, use `npm run dev:app:raw`
@@ -188,8 +189,11 @@ SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=no-reply@securehealth.local
 ML_SERVICE_URL=http://localhost:8001
-STORAGE_DRIVER=fs
-LOCAL_STORAGE_ROOT=./local-storage
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=your-bucket-name
+S3_SERVER_SIDE_ENCRYPTION=
 SEED_DEFAULT_USERS=true
 ```
 
@@ -204,22 +208,17 @@ MFA-specific environment variables:
 
 With these configured, users can enable email OTP MFA from the shared `/security` page and admins can reset MFA from User Management.
 
-## Storage Modes
-
-Local/demo mode:
-
-- `STORAGE_DRIVER=fs`
-- files are stored on local disk or in a Docker volume
-
-Production-style S3 mode:
+## Storage
 
 ```dotenv
-STORAGE_DRIVER=s3
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 AWS_REGION=us-east-1
 AWS_S3_BUCKET=your-bucket-name
+S3_SERVER_SIDE_ENCRYPTION=
 ```
+
+AWS S3 is mandatory for both Docker and local development. Files are no longer stored on local disk or in Docker volumes.
 
 ## ML Service
 
@@ -447,7 +446,7 @@ You can describe the model section of the report like this:
 1. A user logs in and receives a JWT.
 2. The frontend calls `/api/*`, which routes through the Next.js catch-all API handler.
 3. Uploads are validated and sent to the ML service for scanning.
-4. Clean files are stored through the configured storage driver.
+4. Clean files are stored in AWS S3.
 5. Downloads and shares are checked against auth, policy, and logging rules.
 6. Audit and security events are written to PostgreSQL.
 
