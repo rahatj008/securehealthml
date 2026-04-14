@@ -170,7 +170,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-grid px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl gap-5 lg:grid-cols-[1.08fr_0.92fr]">
-        <div className="surface-card-strong flex flex-col justify-between rounded-[2rem] bg-slate-950 p-6 text-white sm:p-8 lg:p-10">
+        <div className="flex flex-col justify-between rounded-[2rem] border border-slate-900/80 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_34%),linear-gradient(180deg,_#08101f_0%,_#0b1528_48%,_#101b31_100%)] p-6 text-white shadow-[0_28px_64px_rgba(8,16,31,0.34)] sm:p-8 lg:p-10">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-300 sm:text-sm">
               Secured Health Records
@@ -193,7 +193,7 @@ export default function LoginPage() {
             ].map((item) => (
               <div
                 key={item}
-                className="rounded-[1.4rem] border border-white/10 bg-white/8 px-4 py-4 text-sm leading-6 text-slate-200"
+                className="rounded-[1.4rem] border border-white/12 bg-white/8 px-4 py-4 text-sm leading-6 text-slate-200 backdrop-blur-sm"
               >
                 {item}
               </div>
