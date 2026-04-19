@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "../lib/api";
@@ -168,42 +169,66 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-grid px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl gap-5 lg:grid-cols-[1.08fr_0.92fr]">
-        <div className="flex flex-col justify-between rounded-[2rem] border border-slate-900/80 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_34%),linear-gradient(180deg,_#08101f_0%,_#0b1528_48%,_#101b31_100%)] p-6 text-white shadow-[0_28px_64px_rgba(8,16,31,0.34)] sm:p-8 lg:p-10">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-300 sm:text-sm">
-              Secured Health Records
-            </p>
-            <h1 className="mt-4 max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl lg:text-[2.85rem]">
-              Safer record sharing with ABAC, secure storage, and live threat detection.
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-              The platform checks user trust, file policy, and malware signals before sensitive records move across
-              teams.
-            </p>
-          </div>
+    <div className="min-h-screen bg-grid px-4 py-4 sm:px-6 sm:py-5">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-6xl gap-4 lg:grid-cols-[1.04fr_0.96fr]">
+        <div className="flex flex-col justify-center rounded-[1.75rem] border border-slate-900/80 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_34%),linear-gradient(180deg,_#08101f_0%,_#0b1528_48%,_#101b31_100%)] p-5 text-white shadow-[0_28px_64px_rgba(8,16,31,0.34)] sm:p-6 lg:p-7">
+          <div className="space-y-6">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-300 sm:text-xs">
+                Secured Health Records
+              </p>
+              <h1 className="mt-3 max-w-2xl text-2xl font-semibold leading-tight sm:text-[2rem] lg:text-[2.45rem]">
+                Safer record sharing with ABAC, secure storage, and live threat detection.
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                The platform checks user trust, file policy, and malware signals before sensitive records move across
+                teams.
+              </p>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+                Developed at Ilma University to demonstrate secure, policy-aware, malware-screened health record access.
+              </p>
+            </div>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            {[
-              "Policy-driven access based on role, department, and clearance",
-              "Live PDF model plus YARA and ClamAV screening during upload",
-              "One-time share links that erase files after first secure access",
-              "Optional email OTP MFA with backup-code recovery",
-            ].map((item) => (
-              <div
-                key={item}
-                className="rounded-[1.4rem] border border-white/12 bg-white/8 px-4 py-4 text-sm leading-6 text-slate-200 backdrop-blur-sm"
-              >
-                {item}
-              </div>
-            ))}
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {[
+                "Policy-driven access based on role, department, and clearance",
+                "Live PDF model plus YARA and ClamAV screening during upload",
+                "One-time share links that erase files after first secure access",
+                "Optional email OTP MFA with backup-code recovery",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[1.15rem] border border-white/12 bg-white/8 px-3.5 py-3 text-[13px] leading-5 text-slate-200 backdrop-blur-sm"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center">
-          <div className="surface-card-strong w-full rounded-[2rem] p-6 sm:p-8">
-            <div className="rounded-[1.6rem] bg-blue-50 px-4 py-4 text-sm text-blue-800">
+          <div className="surface-card-strong w-full rounded-[1.75rem] p-5 sm:p-6">
+            <div className="mb-5 rounded-[1.35rem] border border-slate-100 bg-slate-50/90 px-4 py-4">
+              <div className="rounded-[1.1rem] border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                <Image
+                  src="/uni_logo.png"
+                  alt="Ilma University logo"
+                  width={700}
+                  height={342}
+                  className="h-auto w-full max-w-[220px] object-contain sm:max-w-[280px]"
+                  priority
+                />
+              </div>
+              <div className="mt-3">
+                <p className="text-sm font-medium text-slate-800">Final Year Project</p>
+                <p className="mt-1 text-sm leading-5 text-slate-500">
+                  Machine learning-enhanced secure health record access platform.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-[1.35rem] bg-blue-50 px-4 py-3.5 text-sm text-blue-800">
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Unified gateway</p>
               <p className="mt-2 font-semibold">
                 {step === "credentials"
@@ -212,23 +237,23 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <div className="mt-6">
-              <p className="text-2xl font-semibold text-slate-900">
+            <div className="mt-5">
+              <p className="text-[1.7rem] font-semibold text-slate-900">
                 {step === "credentials" ? "Sign in" : "Verify your login"}
               </p>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                {step === "credentials"
-                  ? "Use your seeded demo account or your assigned credentials to enter the secure platform."
-                  : `Finish sign-in for ${mfa.maskedEmail || form.email} using the email code or one of your backup codes.`}
-              </p>
+              {step === "mfa" ? (
+                <p className="mt-2 text-sm leading-5 text-slate-500">
+                  {`Finish sign-in for ${mfa.maskedEmail || form.email} using the email code or one of your backup codes.`}
+                </p>
+              ) : null}
             </div>
 
             {step === "credentials" ? (
-              <form onSubmit={handleCredentialsSubmit} className="mt-6 space-y-4">
+              <form onSubmit={handleCredentialsSubmit} className="mt-5 space-y-3.5">
                 <label className="block space-y-2">
                   <span className="text-sm font-medium text-slate-700">Email</span>
                   <input
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
                     placeholder="Enter your email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -239,7 +264,7 @@ export default function LoginPage() {
                   <span className="text-sm font-medium text-slate-700">Password</span>
                   <input
                     type="password"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
                     placeholder="Enter your password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -248,14 +273,14 @@ export default function LoginPage() {
 
                 <button
                   disabled={loading}
-                  className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? "Validating..." : "Enter Secure Platform"}
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleMfaSubmit} className="mt-6 space-y-4">
-                <div className="rounded-[1.5rem] border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+              <form onSubmit={handleMfaSubmit} className="mt-5 space-y-3.5">
+                <div className="rounded-[1.3rem] border border-slate-100 bg-slate-50 px-4 py-3.5 text-sm text-slate-600">
                   Verification email: <span className="font-semibold text-slate-900">{mfa.maskedEmail}</span>
                 </div>
 
@@ -263,7 +288,7 @@ export default function LoginPage() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-700">6-digit verification code</span>
                     <input
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
                       placeholder="Enter the code from your email"
                       value={mfa.code}
                       onChange={(e) => setMfa({ ...mfa, code: e.target.value })}
@@ -273,7 +298,7 @@ export default function LoginPage() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-700">Backup code</span>
                     <input
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
                       placeholder="Enter one of your saved backup codes"
                       value={mfa.backupCode}
                       onChange={(e) => setMfa({ ...mfa, backupCode: e.target.value.toUpperCase() })}
@@ -285,7 +310,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? "Checking..." : mfa.useBackupCode ? "Use backup code" : "Verify and sign in"}
                   </button>
@@ -293,7 +318,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={handleResendCode}
                     disabled={loading || mfa.useBackupCode}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Resend code
                   </button>
@@ -316,7 +341,7 @@ export default function LoginPage() {
 
             {notice ? (
               <div
-                className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                className={`mt-4 rounded-2xl px-4 py-3 text-sm leading-5 ${
                   notice.tone === "error"
                     ? "border border-rose-100 bg-rose-50 text-rose-700"
                     : "border border-blue-100 bg-blue-50 text-blue-700"
