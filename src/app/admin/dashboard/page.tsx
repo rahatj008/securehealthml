@@ -26,6 +26,15 @@ type Analytics = {
   authFailures: Point[];
 };
 
+type ChartKey = keyof Analytics;
+
+type ChartDefinition = {
+  key: ChartKey;
+  title: string;
+  color: string;
+  accentTone: string;
+};
+
 type FileRow = {
   id: string;
   filename: string;
@@ -53,7 +62,19 @@ type DeleteFileResponse = {
   destroyed: boolean;
 };
 
-function LineChart({ title, data, color }: { title: string; data: Point[]; color: string }) {
+function LineChart({
+  title,
+  data,
+  color,
+  expanded = false,
+  onExpand,
+}: {
+  title: string;
+  data: Point[];
+  color: string;
+  expanded?: boolean;
+  onExpand?: () => void;
+}) {
   const max = useMemo(() => Math.max(...data.map((d) => d.count), 1), [data]);
   const points = useMemo(() => {
     if (!data.length) return "";
@@ -66,24 +87,60 @@ function LineChart({ title, data, color }: { title: string; data: Point[]; color
       .join(" ");
   }, [data, max]);
 
-  return (
-    <div className="surface-card rounded-[1.7rem] p-5">
+  const chartBody = (
+    <>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-700">{title}</p>
+        <div className="flex items-center gap-3">
+          <p className={`${expanded ? "text-base" : "text-sm"} font-semibold text-slate-700`}>{title}</p>
+          {onExpand ? (
+            <span className="status-pill bg-blue-50 text-blue-700">Click to expand</span>
+          ) : null}
+        </div>
         <span className="status-pill bg-slate-100 text-slate-600">7 days</span>
       </div>
-      <svg viewBox="0 0 100 100" className="mt-4 h-36 w-full overflow-visible">
-        <polyline points={points} fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" />
+      <svg
+        viewBox="0 0 100 100"
+        className={`mt-4 w-full overflow-visible ${expanded ? "h-72 sm:h-80" : "h-36"}`}
+      >
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth={expanded ? "2.8" : "2.4"}
+          strokeLinecap="round"
+        />
         {data.map((d, idx) => {
           const x = (idx / Math.max(data.length - 1, 1)) * 100;
           const y = 100 - (d.count / max) * 90;
-          return <circle key={`${d.day}-${idx}`} cx={x} cy={y} r="2" fill={color} />;
+          return <circle key={`${d.day}-${idx}`} cx={x} cy={y} r={expanded ? "2.3" : "2"} fill={color} />;
         })}
       </svg>
-      <div className="mt-2 flex justify-between text-[11px] text-slate-400">
+      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
         <span>{data[0]?.day || "-"}</span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Peak {max}
+        </span>
         <span>{data[data.length - 1]?.day || "-"}</span>
       </div>
+    </>
+  );
+
+  if (onExpand) {
+    return (
+      <button
+        type="button"
+        onClick={onExpand}
+        className="surface-card w-full rounded-[1.7rem] p-5 text-left transition duration-150 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_rgba(29,114,242,0.14)] focus:outline-none focus:ring-4 focus:ring-blue-100"
+        aria-label={`Expand ${title} chart`}
+      >
+        {chartBody}
+      </button>
+    );
+  }
+
+  return (
+    <div className={`surface-card rounded-[1.7rem] ${expanded ? "p-6 sm:p-7" : "p-5"}`}>
+      {chartBody}
     </div>
   );
 }
@@ -112,6 +169,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [expandedChartKey, setExpandedChartKey] = useState<ChartKey | null>(null);
   const authToken = token || undefined;
 
   const loadDashboard = useCallback(
@@ -178,6 +236,27 @@ export default function AdminDashboard() {
     return () => window.clearInterval(intervalId);
   }, [token, loadDashboard]);
 
+  useEffect(() => {
+    if (!expandedChartKey) {
+      document.body.style.overflow = "";
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpandedChartKey(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [expandedChartKey]);
+
   if (!ready || !user) {
     return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading...</div>;
   }
@@ -189,6 +268,31 @@ export default function AdminDashboard() {
     { label: "Malware", value: summary?.malware, tone: "bg-rose-50 text-rose-700" },
     { label: "Auth failures", value: summary?.authDenied, tone: "bg-emerald-50 text-emerald-700" },
   ];
+
+  const chartDefinitions: ChartDefinition[] = [
+    {
+      key: "anomalyDetection",
+      title: "Anomaly detection",
+      color: "#1d4ed8",
+      accentTone: "bg-blue-50 text-blue-700",
+    },
+    {
+      key: "malwareDetection",
+      title: "Malware detection",
+      color: "#dc2626",
+      accentTone: "bg-rose-50 text-rose-700",
+    },
+    {
+      key: "authFailures",
+      title: "Auth failures",
+      color: "#f59e0b",
+      accentTone: "bg-amber-50 text-amber-700",
+    },
+  ];
+
+  const expandedChart = expandedChartKey
+    ? chartDefinitions.find((chart) => chart.key === expandedChartKey) || null
+    : null;
 
   return (
     <AppShell
@@ -252,9 +356,15 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <LineChart title="Anomaly detection" data={analytics.anomalyDetection} color="#1d4ed8" />
-        <LineChart title="Malware detection" data={analytics.malwareDetection} color="#dc2626" />
-        <LineChart title="Auth failures" data={analytics.authFailures} color="#f59e0b" />
+        {chartDefinitions.map((chart) => (
+          <LineChart
+            key={chart.key}
+            title={chart.title}
+            data={analytics[chart.key]}
+            color={chart.color}
+            onExpand={() => setExpandedChartKey(chart.key)}
+          />
+        ))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
@@ -442,6 +552,54 @@ export default function AdminDashboard() {
           </table>
         </div>
       </section>
+
+      {expandedChart ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm"
+          onClick={() => setExpandedChartKey(null)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dashboard-chart-modal-title"
+            className="surface-card-strong w-full max-w-4xl rounded-[2rem] border border-white/70 p-4 shadow-[0_30px_80px_rgba(15,29,43,0.28)] sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-col gap-4 border-b border-slate-200/80 pb-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="page-eyebrow text-blue-600">Expanded chart view</p>
+                <h2 id="dashboard-chart-modal-title" className="mt-2 text-2xl font-semibold text-slate-950">
+                  {expandedChart.title}
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  Larger 7-day telemetry view using the same live analytics already loaded on the dashboard.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`status-pill ${expandedChart.accentTone}`}>7-day trend</span>
+                <button
+                  type="button"
+                  onClick={() => setExpandedChartKey(null)}
+                  className="button-secondary"
+                  autoFocus
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <LineChart
+                title={expandedChart.title}
+                data={analytics[expandedChart.key]}
+                color={expandedChart.color}
+                expanded
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }
