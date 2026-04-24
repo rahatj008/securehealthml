@@ -50,35 +50,33 @@ export default function FileTransfersPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">File transfers</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">File transfers</p>
+            <h1 className="page-title">
               Track uploads, downloads, and sharing activity from the transfer timeline.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               This view is useful for spotting unusual movement patterns around sensitive records.
             </p>
           </div>
-          <span className="status-pill bg-blue-50 text-blue-700">Transfer activity feed</span>
+          <span className="hero-chip bg-blue-50 text-blue-700">Transfer activity feed</span>
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+      <section className="section-card">
         {error ? (
-          <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {error}
-          </div>
+          <div className="alert-card alert-warning">{error}</div>
         ) : null}
 
         <div className="mt-5 space-y-3 md:hidden">
           {loading ? (
-            <div className="mobile-data-card text-sm text-slate-500">Loading file transfer logs...</div>
+            <div className="empty-state text-sm">Loading file transfer logs...</div>
           ) : null}
 
           {!loading && !logs.length ? (
-            <div className="mobile-data-card text-sm text-slate-500">No file transfer logs are available yet.</div>
+            <div className="empty-state text-sm">No file transfer logs are available yet.</div>
           ) : null}
 
           {logs.map((log) => (
@@ -104,9 +102,9 @@ export default function FileTransfersPage() {
           ))}
         </div>
 
-        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell mt-5 hidden md:block">
+          <table className="table-base">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">Action</th>
                 <th className="px-4 py-3">User</th>
@@ -118,7 +116,7 @@ export default function FileTransfersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="table-empty">
                     Loading file transfer logs...
                   </td>
                 </tr>
@@ -126,21 +124,21 @@ export default function FileTransfersPage() {
 
               {!loading && !logs.length ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="table-empty">
                     No file transfer logs are available yet.
                   </td>
                 </tr>
               ) : null}
 
               {logs.map((log) => (
-                <tr key={log.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold capitalize text-slate-700">{log.action}</td>
-                  <td className="px-4 py-3 text-slate-500">{log.email || "Unknown"}</td>
-                  <td className="px-4 py-3 text-slate-500">{log.filename || "-"}</td>
+                <tr key={log.id} className="table-row">
+                  <td className="font-semibold capitalize text-slate-700">{log.action}</td>
+                  <td className="text-slate-500">{log.email || "Unknown"}</td>
+                  <td className="text-slate-500">{log.filename || "-"}</td>
                   <td className={`px-4 py-3 ${log.decision === "allowed" ? "text-emerald-600" : "text-rose-500"}`}>
                     {log.decision}
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(log.created_at)}</td>
+                  <td className="text-slate-500">{formatTimestamp(log.created_at)}</td>
                 </tr>
               ))}
             </tbody>

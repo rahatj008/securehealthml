@@ -178,20 +178,20 @@ export default function SecurityPage() {
       onLogout={logout}
       nav={user.role === "admin" ? adminNav : userNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Security</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">Security</p>
+            <h1 className="page-title">
               Protect your account with an email verification step and single-use recovery codes.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               Enable multi-factor authentication to require a one-time email code after your password, then save the
               backup codes somewhere safe for emergencies.
             </p>
           </div>
           <span
-            className={`status-pill ${
+            className={`hero-chip ${
               security?.mfaEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"
             }`}
           >
@@ -201,28 +201,24 @@ export default function SecurityPage() {
       </section>
 
       {error ? (
-        <div className="rounded-[1.5rem] border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
+        <div className="alert-card alert-error">{error}</div>
       ) : null}
 
       {message ? (
-        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          {message}
-        </div>
+        <div className="alert-card alert-info">{message}</div>
       ) : null}
 
       {loading && !security ? (
-        <div className="surface-card rounded-[1.8rem] p-5 text-sm text-slate-500">Loading security settings...</div>
+        <div className="section-card text-sm text-slate-500">Loading security settings...</div>
       ) : null}
 
       {security ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <section className="section-card">
+            <div className="section-header">
               <div>
-                <p className="text-lg font-semibold text-slate-900">MFA status</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="section-title">MFA status</p>
+                <p className="section-copy mt-1">
                   Review whether your account currently requires email verification during sign-in.
                 </p>
               </div>
@@ -243,30 +239,30 @@ export default function SecurityPage() {
             </div>
 
             {!security.mfaEnabled ? (
-              <div className="mt-5 rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-blue-800">
+              <div className="alert-card alert-info mt-5">
                 MFA is currently off. Turn it on to require a 6-digit email verification code after the password step.
               </div>
             ) : (
-              <div className="mt-5 rounded-[1.5rem] border border-emerald-100 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+              <div className="alert-card alert-success mt-5">
                 MFA is active on this account. Save your backup codes somewhere secure before you need them.
               </div>
             )}
           </section>
 
-          <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+          <section className="section-card">
             {!security.mfaEnabled ? (
               <>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="section-header">
                   <div>
-                    <p className="text-lg font-semibold text-slate-900">Enable email OTP</p>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="section-title">Enable email OTP</p>
+                    <p className="section-copy mt-1">
                       Send a setup code to your account email, then verify it to turn MFA on.
                     </p>
                   </div>
                   <button
                     onClick={startEnable}
                     disabled={working === "enable-start"}
-                    className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="button-primary"
                   >
                     {working === "enable-start" ? "Sending..." : "Send setup code"}
                   </button>
@@ -281,17 +277,14 @@ export default function SecurityPage() {
                     <label className="block space-y-2">
                       <span className="text-sm font-medium text-slate-700">Verification code</span>
                       <input
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        className="control-input"
                         placeholder="6-digit code"
                         value={setupCode}
                         onChange={(event) => setSetupCode(event.target.value)}
                       />
                     </label>
 
-                    <button
-                      disabled={working === "enable-verify"}
-                      className="w-full rounded-2xl bg-slate-900 px-4 py-3.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    >
+                    <button disabled={working === "enable-verify"} className="button-dark w-full">
                       {working === "enable-verify" ? "Verifying..." : "Enable MFA"}
                     </button>
                   </form>
@@ -300,8 +293,8 @@ export default function SecurityPage() {
             ) : (
               <div className="space-y-5">
                 <div>
-                  <p className="text-lg font-semibold text-slate-900">Recovery actions</p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="section-title">Recovery actions</p>
+                  <p className="section-copy mt-1">
                     Confirm your current password before disabling MFA or generating a fresh set of backup codes.
                   </p>
                 </div>
@@ -310,7 +303,7 @@ export default function SecurityPage() {
                   <span className="text-sm font-medium text-slate-700">Current password</span>
                   <input
                     type="password"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    className="control-input"
                     placeholder="Enter your current password"
                     value={currentPassword}
                     onChange={(event) => setCurrentPassword(event.target.value)}
@@ -321,7 +314,7 @@ export default function SecurityPage() {
                   <button
                     onClick={regenerateBackupCodes}
                     disabled={working === "regenerate"}
-                    className="rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="button-primary"
                   >
                     {working === "regenerate" ? "Regenerating..." : "Regenerate backup codes"}
                   </button>
@@ -329,7 +322,7 @@ export default function SecurityPage() {
                   <form onSubmit={disableMfa}>
                     <button
                       disabled={working === "disable"}
-                      className="w-full rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="button-danger-soft w-full"
                     >
                       {working === "disable" ? "Disabling..." : "Disable MFA"}
                     </button>
@@ -342,11 +335,11 @@ export default function SecurityPage() {
       ) : null}
 
       {backupCodes.length ? (
-        <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="section-card">
+          <div className="section-header">
             <div>
-              <p className="text-lg font-semibold text-slate-900">Backup codes</p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="section-title">Backup codes</p>
+              <p className="section-copy mt-1">
                 These codes are shown once. Save them now and use each code only one time.
               </p>
             </div>

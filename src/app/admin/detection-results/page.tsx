@@ -55,9 +55,9 @@ function MetricCard({
   tone: string;
 }) {
   return (
-    <div className="surface-card rounded-[1.5rem] p-5">
+    <div className="metric-card">
       <span className={`status-pill ${tone}`}>{label}</span>
-      <p className="mt-4 text-3xl font-semibold text-slate-900">{value}</p>
+      <p className="metric-value">{value}</p>
     </div>
   );
 }
@@ -99,41 +99,39 @@ export default function DetectionResultsPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Detection results</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">Detection results</p>
+            <h1 className="page-title">
               Review the trained PDF malware detector and compare the saved evaluation results across candidate models.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               This page shows offline model performance from the saved training artifact, separate from the live malware
               events shown elsewhere in the admin console.
             </p>
           </div>
-          <span className="status-pill bg-blue-50 text-blue-700">
+          <span className="hero-chip bg-blue-50 text-blue-700">
             Deployed model: {results?.deployedModel ? formatModelName(results.deployedModel) : "Loading"}
           </span>
         </div>
       </section>
 
       {error ? (
-        <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {error}
-        </div>
+        <div className="alert-card alert-warning">{error}</div>
       ) : null}
 
       {loading && !results ? (
-        <div className="surface-card rounded-[1.8rem] p-5 text-sm text-slate-500">Loading detection results...</div>
+        <div className="section-card text-sm text-slate-500">Loading detection results...</div>
       ) : null}
 
       {results && deployedModel ? (
         <>
-          <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <section className="section-card">
+            <div className="section-header">
               <div>
-                <p className="text-lg font-semibold text-slate-900">Currently deployed model</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="section-title">Currently deployed model</p>
+                <p className="section-copy mt-1">
                   These are the saved test-set metrics for the PDF detector currently in use.
                 </p>
               </div>
@@ -152,11 +150,11 @@ export default function DetectionResultsPage() {
           </section>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <section className="section-card">
+              <div className="section-header">
                 <div>
-                  <p className="text-lg font-semibold text-slate-900">Training snapshot</p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="section-title">Training snapshot</p>
+                  <p className="section-copy mt-1">
                     Dataset size, split, target column, and artifact details from the saved training run.
                   </p>
                 </div>
@@ -185,11 +183,11 @@ export default function DetectionResultsPage() {
               </div>
             </section>
 
-            <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <section className="section-card">
+              <div className="section-header">
                 <div>
-                  <p className="text-lg font-semibold text-slate-900">Confusion matrix</p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="section-title">Confusion matrix</p>
+                  <p className="section-copy mt-1">
                     The deployed model’s predictions on the held-out test set.
                   </p>
                 </div>
@@ -212,11 +210,11 @@ export default function DetectionResultsPage() {
             </section>
           </div>
 
-          <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <section className="section-card">
+            <div className="section-header">
               <div>
-                <p className="text-lg font-semibold text-slate-900">Model comparison</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="section-title">Model comparison</p>
+                <p className="section-copy mt-1">
                   Compare the saved evaluation results for each trained model candidate.
                 </p>
               </div>
@@ -269,11 +267,11 @@ export default function DetectionResultsPage() {
             </div>
           </section>
 
-          <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <section className="section-card">
+            <div className="section-header">
               <div>
-                <p className="text-lg font-semibold text-slate-900">Interpretation</p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="section-title">Interpretation</p>
+                <p className="section-copy mt-1">
                   Plain-English meaning of the headline metrics used in this project.
                 </p>
               </div>

@@ -200,19 +200,19 @@ export default function AdminDashboard() {
       nav={adminNav}
     >
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.8fr)]">
-        <div className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Admin command center</p>
-          <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+        <div className="page-hero">
+          <p className="page-eyebrow text-blue-600">Admin command center</p>
+          <h1 className="page-title">
             Monitor live file risk, policy activity, and user behavior from a single responsive dashboard.
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="page-copy">
             Malware blocks, anomaly detections, authentication failures, and record status changes are collected into
             one stream so administrators can react quickly on desktop or mobile.
           </p>
         </div>
 
-        <div className="surface-card rounded-[2rem] border border-emerald-200 p-5 sm:p-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">Security monitoring</p>
+        <div className="section-card border border-emerald-200">
+          <p className="page-eyebrow text-emerald-700">Security monitoring</p>
           <p className="mt-3 text-xl font-semibold text-emerald-950">
             Malware detections flow straight into the graph, logs, and summary counters.
           </p>
@@ -222,7 +222,7 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      <div className="surface-card flex flex-col gap-3 rounded-[1.8rem] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="section-card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-700">Security telemetry</p>
           <p className="text-xs text-slate-500">
@@ -233,22 +233,18 @@ export default function AdminDashboard() {
       </div>
 
       {error ? (
-        <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {error}
-        </div>
+        <div className="alert-card alert-warning">{error}</div>
       ) : null}
 
       {actionMessage ? (
-        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          {actionMessage}
-        </div>
+        <div className="alert-card alert-info">{actionMessage}</div>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {metricCards.map((card) => (
-          <div key={card.label} className="surface-card rounded-[1.7rem] p-5">
+          <div key={card.label} className="metric-card">
             <span className={`status-pill ${card.tone}`}>{card.label}</span>
-            <p className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">
+            <p className="metric-value">
               {card.value ?? (loading ? "..." : 0)}
             </p>
           </div>
@@ -262,11 +258,11 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
-        <div className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="section-card">
+          <div className="section-header">
             <div>
-              <p className="text-lg font-semibold text-slate-900">System flow</p>
-              <p className="mt-1 text-sm text-slate-500">The platform steps before a file is allowed, blocked, or destroyed.</p>
+              <p className="section-title">System flow</p>
+              <p className="section-copy mt-1">The platform steps before a file is allowed, blocked, or destroyed.</p>
             </div>
             <span className="status-pill bg-slate-100 text-slate-600">Live enforcement path</span>
           </div>
@@ -288,11 +284,11 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="section-card">
+          <div className="section-header">
             <div>
-              <p className="text-lg font-semibold text-slate-900">Recent malware detections</p>
-              <p className="mt-1 text-sm text-slate-500">Latest blocked uploads from the scanner service.</p>
+              <p className="section-title">Recent malware detections</p>
+              <p className="section-copy mt-1">Latest blocked uploads from the scanner service.</p>
             </div>
             <Link href="/admin/malware-logs" className="status-pill bg-rose-50 text-rose-700">
               View all logs
@@ -301,15 +297,11 @@ export default function AdminDashboard() {
 
           <div className="mt-5 space-y-3">
             {loading && !recentMalware.length ? (
-              <div className="rounded-[1.4rem] bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                Loading malware detections...
-              </div>
+              <div className="empty-state text-sm">Loading malware detections...</div>
             ) : null}
 
             {!loading && !recentMalware.length ? (
-              <div className="rounded-[1.4rem] bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                No malware detections have been recorded yet.
-              </div>
+              <div className="empty-state text-sm">No malware detections have been recorded yet.</div>
             ) : null}
 
             {recentMalware.map((event) => (
@@ -333,22 +325,22 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="section-card">
+        <div className="section-header">
           <div>
-            <p className="text-lg font-semibold text-slate-900">Recent records</p>
-            <p className="mt-1 text-sm text-slate-500">The latest file activity across the system.</p>
+            <p className="section-title">Recent records</p>
+            <p className="section-copy mt-1">The latest file activity across the system.</p>
           </div>
           <span className="status-pill bg-blue-50 text-blue-700">Live data</span>
         </div>
 
         <div className="mt-5 space-y-3 md:hidden">
           {loading && !files.length ? (
-            <div className="mobile-data-card text-sm text-slate-500">Loading recent records...</div>
+            <div className="empty-state text-sm">Loading recent records...</div>
           ) : null}
 
           {!loading && !files.length ? (
-            <div className="mobile-data-card text-sm text-slate-500">No recent records are available.</div>
+            <div className="empty-state text-sm">No recent records are available.</div>
           ) : null}
 
           {files.slice(0, 8).map((file) => (
@@ -377,7 +369,7 @@ export default function AdminDashboard() {
               ) : (
                 <button
                   onClick={() => handleDeleteFile(file)}
-                  className="mt-4 w-full rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                  className="button-danger mt-4 w-full"
                   disabled={deletingFileId === file.id}
                 >
                   {deletingFileId === file.id ? "Deleting..." : "Delete"}
@@ -387,9 +379,9 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell mt-5 hidden md:block">
+          <table className="table-base">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Owner</th>
@@ -402,7 +394,7 @@ export default function AdminDashboard() {
             <tbody>
               {loading && !files.length ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="table-empty">
                     Loading recent records...
                   </td>
                 </tr>
@@ -410,17 +402,17 @@ export default function AdminDashboard() {
 
               {!loading && !files.length ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="table-empty">
                     No recent records are available.
                   </td>
                 </tr>
               ) : null}
 
               {files.slice(0, 8).map((file) => (
-                <tr key={file.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-slate-700">{file.filename}</td>
-                  <td className="px-4 py-3 text-slate-500">{file.owner_email || "Unknown"}</td>
-                  <td className="px-4 py-3 text-slate-500">{file.security_level}</td>
+                <tr key={file.id} className="table-row">
+                  <td className="font-semibold text-slate-700">{file.filename}</td>
+                  <td className="text-slate-500">{file.owner_email || "Unknown"}</td>
+                  <td className="text-slate-500">{file.security_level}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`status-pill ${
@@ -430,14 +422,14 @@ export default function AdminDashboard() {
                       {file.is_destroyed ? "Destroyed" : "Active"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(file.created_at)}</td>
+                  <td className="text-slate-500">{formatTimestamp(file.created_at)}</td>
                   <td className="px-4 py-3">
                     {file.is_destroyed ? (
                       <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Removed</span>
                     ) : (
                       <button
                         onClick={() => handleDeleteFile(file)}
-                        className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        className="button-pill-danger"
                         disabled={deletingFileId === file.id}
                       >
                         {deletingFileId === file.id ? "Deleting..." : "Delete"}

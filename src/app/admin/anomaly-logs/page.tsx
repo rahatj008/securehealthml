@@ -49,35 +49,33 @@ export default function AnomalyLogsPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Anomaly events</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">Anomaly events</p>
+            <h1 className="page-title">
               Inspect behavioral anomalies surfaced by the security model.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               These events capture suspicious patterns around users and file access, with a score attached to each one.
             </p>
           </div>
-          <span className="status-pill bg-amber-50 text-amber-700">ML behavior signals</span>
+          <span className="hero-chip bg-amber-50 text-amber-700">ML behavior signals</span>
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+      <section className="section-card">
         {error ? (
-          <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {error}
-          </div>
+          <div className="alert-card alert-warning">{error}</div>
         ) : null}
 
         <div className="mt-5 space-y-3 md:hidden">
           {loading ? (
-            <div className="mobile-data-card text-sm text-slate-500">Loading anomaly events...</div>
+            <div className="empty-state text-sm">Loading anomaly events...</div>
           ) : null}
 
           {!loading && !events.length ? (
-            <div className="mobile-data-card text-sm text-slate-500">No anomaly events have been recorded yet.</div>
+            <div className="empty-state text-sm">No anomaly events have been recorded yet.</div>
           ) : null}
 
           {events.map((event) => (
@@ -94,9 +92,9 @@ export default function AnomalyLogsPage() {
           ))}
         </div>
 
-        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell mt-5 hidden md:block">
+          <table className="table-base">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">File</th>
@@ -107,7 +105,7 @@ export default function AnomalyLogsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={4} className="table-empty">
                     Loading anomaly events...
                   </td>
                 </tr>
@@ -115,18 +113,18 @@ export default function AnomalyLogsPage() {
 
               {!loading && !events.length ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={4} className="table-empty">
                     No anomaly events have been recorded yet.
                   </td>
                 </tr>
               ) : null}
 
               {events.map((event) => (
-                <tr key={event.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 text-slate-500">{event.email || "Unknown"}</td>
-                  <td className="px-4 py-3 text-slate-500">{event.filename || "-"}</td>
-                  <td className="px-4 py-3 font-semibold text-rose-500">{Number(event.score).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(event.created_at)}</td>
+                <tr key={event.id} className="table-row">
+                  <td className="text-slate-500">{event.email || "Unknown"}</td>
+                  <td className="text-slate-500">{event.filename || "-"}</td>
+                  <td className="font-semibold text-rose-500">{Number(event.score).toFixed(2)}</td>
+                  <td className="text-slate-500">{formatTimestamp(event.created_at)}</td>
                 </tr>
               ))}
             </tbody>

@@ -89,23 +89,23 @@ export default function SharedWithMePage() {
       onLogout={logout}
       nav={userNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Shared with me</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">Shared with me</p>
+            <h1 className="page-title">
               Access records shared directly with you or exposed through matching policy.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               One-time share rows self-destruct after download. Policy-accessible rows remain available as long as the
               file stays active and your ABAC attributes still match.
             </p>
           </div>
-          <span className="status-pill bg-blue-50 text-blue-700">Mixed access sources</span>
+          <span className="hero-chip bg-blue-50 text-blue-700">Mixed access sources</span>
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+      <section className="section-card">
         <div className="space-y-3 md:hidden">
           {files.length ? (
             files.map((file) => (
@@ -131,7 +131,7 @@ export default function SharedWithMePage() {
                 </div>
                 <button
                   onClick={() => handleAccess(file)}
-                  className="mt-4 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                  className="button-dark mt-4 w-full"
                   disabled={workingFileId === file.file_id}
                 >
                   {workingFileId === file.file_id
@@ -143,15 +143,15 @@ export default function SharedWithMePage() {
               </div>
             ))
           ) : (
-            <div className="mobile-data-card text-sm text-slate-500">
+            <div className="empty-state text-sm">
               No accessible files are available for you right now.
             </div>
           )}
         </div>
 
-        <div className="hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell hidden md:block">
+          <table className="table-base">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Owner</th>
@@ -163,9 +163,9 @@ export default function SharedWithMePage() {
             </thead>
             <tbody>
               {files.map((file) => (
-                <tr key={`${file.access_type}-${file.file_id}`} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-slate-700">{file.filename}</td>
-                  <td className="px-4 py-3 text-slate-500">{file.owner_email || "Unknown"}</td>
+                <tr key={`${file.access_type}-${file.file_id}`} className="table-row">
+                  <td className="font-semibold text-slate-700">{file.filename}</td>
+                  <td className="text-slate-500">{file.owner_email || "Unknown"}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`status-pill ${
@@ -177,12 +177,12 @@ export default function SharedWithMePage() {
                       {file.access_type === "one_time_share" ? "One-time share" : "Policy access"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{file.security_level}</td>
-                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(file.shared_at || file.created_at)}</td>
+                  <td className="text-slate-500">{file.security_level}</td>
+                  <td className="text-slate-500">{formatTimestamp(file.shared_at || file.created_at)}</td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleAccess(file)}
-                      className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                      className="button-pill-dark"
                       disabled={workingFileId === file.file_id}
                     >
                       {workingFileId === file.file_id
@@ -196,7 +196,7 @@ export default function SharedWithMePage() {
               ))}
               {!files.length ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="table-empty">
                     No accessible files are available for you right now.
                   </td>
                 </tr>
@@ -207,9 +207,7 @@ export default function SharedWithMePage() {
       </section>
 
       {message ? (
-        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          {message}
-        </div>
+        <div className="alert-card alert-info">{message}</div>
       ) : null}
     </AppShell>
   );

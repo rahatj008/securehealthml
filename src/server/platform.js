@@ -1368,17 +1368,23 @@ async function handleUpload(request, currentUser) {
         sample_base64: buffer.toString("base64"),
       });
     } catch (error) {
-      console.error("Upload proceeding without ML assessment", error);
-      mlAssessment = {
-        anomaly: false,
-        anomaly_score: 0,
-        malware: false,
-        malware_score: 0,
-        reasons: ["ml_service_unavailable"],
-        features: {
-          ml_service_status: "unavailable",
+      console.error("Upload blocked because the ML service is unavailable", error);
+      await logAccess({
+        userId: currentUser.sub,
+        fileId: null,
+        action: "upload",
+        decision: "denied",
+        reason: "Security scanner unavailable",
+        request,
+      });
+      return json(
+        {
+          error: "Security scanner unavailable. Upload blocked until scanning is restored.",
+          blockedBy: "scanner_unavailable",
+          reasons: ["ml_service_unavailable"],
         },
-      };
+        { status: 503 }
+      );
     }
 
     if (mlAssessment.malware) {

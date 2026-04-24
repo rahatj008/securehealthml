@@ -213,6 +213,16 @@ export default function UserDashboard() {
           score: typeof err.data.score === "number" ? err.data.score : null,
           reasons: Array.isArray(err.data.reasons) ? err.data.reasons.slice(0, 3) : [],
         });
+      } else if (
+        isApiError<UploadErrorPayload>(err) &&
+        err.data?.blockedBy === "scanner_unavailable"
+      ) {
+        setMessage("");
+        setUploadAlert({
+          title: err.message || "Upload blocked because the security scanner is unavailable.",
+          reasons: ["Retry after the scanner service is back online."],
+          score: null,
+        });
       } else {
         setUploadAlert(null);
         setMessage((err as Error).message);
@@ -275,14 +285,14 @@ export default function UserDashboard() {
       onLogout={logout}
       nav={userNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Clinical workspace</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">Clinical workspace</p>
+            <h1 className="page-title">
               Securely upload, share, and access records from a mobile-friendly command center.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
+            <p className="page-copy">
               Every record is wrapped in ABAC policy checks, then monitored by the malware and anomaly layer before
               access is granted.
             </p>
@@ -301,9 +311,7 @@ export default function UserDashboard() {
       </section>
 
       {message ? (
-        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          {message}
-        </div>
+        <div className="alert-card alert-info">{message}</div>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -316,19 +324,19 @@ export default function UserDashboard() {
             tone: "bg-amber-50 text-amber-700",
           },
         ].map((card) => (
-          <div key={card.label} className="surface-card rounded-[1.7rem] p-5">
+          <div key={card.label} className="metric-card">
             <span className={`status-pill ${card.tone}`}>{card.label}</span>
-            <p className="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">{card.value}</p>
+            <p className="metric-value">{card.value}</p>
           </div>
         ))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <div className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="section-card">
+          <div className="section-header">
             <div>
-              <p className="text-lg font-semibold text-slate-900">Secure flow</p>
-              <p className="mt-1 text-sm text-slate-500">What happens before a record is released or blocked.</p>
+              <p className="section-title">Secure flow</p>
+              <p className="section-copy mt-1">What happens before a record is released or blocked.</p>
             </div>
             <span className="status-pill bg-slate-100 text-slate-700">5-step protection chain</span>
           </div>
@@ -348,8 +356,8 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        <div className="surface-card rounded-[1.8rem] border border-emerald-200 p-5 sm:p-6">
-          <p className="text-lg font-semibold text-emerald-950">One-time sharing</p>
+        <div className="section-card border border-emerald-200">
+          <p className="section-title text-emerald-950">One-time sharing</p>
           <p className="mt-3 text-sm leading-6 text-emerald-900">
             Each file can have only one live share. Once the recipient accesses it, the file is erased from secure
             storage and the share is consumed permanently.
@@ -357,11 +365,11 @@ export default function UserDashboard() {
         </div>
       </div>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <section className="section-card">
+        <div className="section-header lg:items-start">
           <div>
-            <p className="text-lg font-semibold text-slate-900">Upload protected EHR</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="section-title">Upload protected EHR</p>
+            <p className="section-copy mt-1">
               Upload a supported file type and bind it to the minimum role, department, and clearance required.
             </p>
           </div>
@@ -369,7 +377,7 @@ export default function UserDashboard() {
         </div>
 
         {uploadAlert ? (
-          <div className="mt-4 rounded-[1.4rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-800">
+          <div className="alert-card alert-error mt-4">
             <p className="font-semibold">{uploadAlert.title}</p>
             {typeof uploadAlert.score === "number" ? (
               <p className="mt-1 text-xs uppercase tracking-[0.22em] text-rose-700">
@@ -386,12 +394,12 @@ export default function UserDashboard() {
           <input
             type="file"
             accept=".pdf,.docx,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg"
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-input"
             onChange={(e) => setFileToUpload(e.target.files?.[0] || null)}
           />
 
           <select
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-select"
             value={uploadForm.role}
             onChange={(e) => setUploadForm({ ...uploadForm, role: e.target.value })}
           >
@@ -404,7 +412,7 @@ export default function UserDashboard() {
           </select>
 
           <select
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-select"
             value={uploadForm.department}
             onChange={(e) => setUploadForm({ ...uploadForm, department: e.target.value })}
           >
@@ -417,7 +425,7 @@ export default function UserDashboard() {
           </select>
 
           <select
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-select"
             value={uploadForm.minClearance}
             onChange={(e) => setUploadForm({ ...uploadForm, minClearance: Number(e.target.value) })}
           >
@@ -429,7 +437,7 @@ export default function UserDashboard() {
           </select>
 
           <select
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-select"
             value={uploadForm.securityLevel}
             onChange={(e) => setUploadForm({ ...uploadForm, securityLevel: e.target.value })}
           >
@@ -441,7 +449,7 @@ export default function UserDashboard() {
           </select>
 
           <button
-            className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 md:col-span-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="button-primary md:col-span-2"
             disabled={!uploadOptions.roles.length || !uploadOptions.departments.length || workingFileId === "upload"}
           >
             {workingFileId === "upload" ? "Scanning and encrypting..." : "Upload secure record"}
@@ -449,11 +457,11 @@ export default function UserDashboard() {
         </form>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <section className="section-card">
+        <div className="section-header lg:items-start">
           <div>
-            <p className="text-lg font-semibold text-slate-900">Accessible to me</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="section-title">Accessible to me</p>
+            <p className="section-copy mt-1">
               Non-owned files appear here when they are shared with you directly or when your ABAC policy matches.
             </p>
           </div>
@@ -492,7 +500,7 @@ export default function UserDashboard() {
                         : "Policy-accessible record downloaded."
                     )
                   }
-                  className="mt-4 w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                  className="button-dark mt-4 w-full"
                   disabled={workingFileId === file.file_id}
                 >
                   {workingFileId === file.file_id
@@ -504,13 +512,13 @@ export default function UserDashboard() {
               </div>
             ))
           ) : (
-            <div className="mobile-data-card text-sm text-slate-500">No non-owned files are currently available.</div>
+            <div className="empty-state text-sm">No non-owned files are currently available.</div>
           )}
         </div>
 
-        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell mt-5 hidden md:block">
+          <table className="table-base">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Owner</th>
@@ -522,9 +530,9 @@ export default function UserDashboard() {
             </thead>
             <tbody>
               {sharedWithMe.map((file) => (
-                <tr key={`${file.access_type}-${file.file_id}`} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-slate-700">{file.filename}</td>
-                  <td className="px-4 py-3 text-slate-500">{file.owner_email || "Unknown"}</td>
+                <tr key={`${file.access_type}-${file.file_id}`} className="table-row">
+                  <td className="font-semibold text-slate-700">{file.filename}</td>
+                  <td className="text-slate-500">{file.owner_email || "Unknown"}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`status-pill ${
@@ -532,23 +540,23 @@ export default function UserDashboard() {
                           ? "bg-rose-50 text-rose-700"
                           : "bg-emerald-50 text-emerald-700"
                       }`}
-                    >
+                  >
                       {file.access_type === "one_time_share" ? "One-time share" : "Policy access"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{file.security_level}</td>
-                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(file.shared_at || file.created_at)}</td>
+                  <td className="text-slate-500">{file.security_level}</td>
+                  <td className="text-slate-500">{formatTimestamp(file.shared_at || file.created_at)}</td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() =>
                         handleDownload(
                           file.file_id,
                           file.access_type === "one_time_share"
-                            ? "One-time shared record accessed."
-                            : "Policy-accessible record downloaded."
+                          ? "One-time shared record accessed."
+                          : "Policy-accessible record downloaded."
                         )
                       }
-                      className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                      className="button-pill-dark"
                       disabled={workingFileId === file.file_id}
                     >
                       {workingFileId === file.file_id
@@ -562,7 +570,7 @@ export default function UserDashboard() {
               ))}
               {!sharedWithMe.length ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="table-empty">
                     No non-owned files are currently available to you.
                   </td>
                 </tr>
@@ -572,11 +580,11 @@ export default function UserDashboard() {
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <section className="section-card">
+        <div className="section-header lg:items-start">
           <div>
-            <p className="text-lg font-semibold text-slate-900">Create one-time share</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="section-title">Create one-time share</p>
+            <p className="section-copy mt-1">
               The recipient can access the record once. After that, the file is erased automatically.
             </p>
           </div>
@@ -585,7 +593,7 @@ export default function UserDashboard() {
 
         <form onSubmit={handleShare} className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <select
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-select"
             value={shareForm.fileId}
             onChange={(e) => setShareForm({ ...shareForm, fileId: e.target.value })}
           >
@@ -597,13 +605,13 @@ export default function UserDashboard() {
             ))}
           </select>
           <input
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-input"
             placeholder="Recipient email"
             value={shareForm.recipientEmail}
             onChange={(e) => setShareForm({ ...shareForm, recipientEmail: e.target.value })}
           />
           <button
-            className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-60"
+            className="button-primary"
             disabled={!shareForm.fileId || !shareForm.recipientEmail || workingFileId === shareForm.fileId}
           >
             {workingFileId === shareForm.fileId ? "Creating..." : "Share once"}
@@ -611,11 +619,11 @@ export default function UserDashboard() {
         </form>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <section className="section-card">
+        <div className="section-header lg:items-start">
           <div>
-            <p className="text-lg font-semibold text-slate-900">My records</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="section-title">My records</p>
+            <p className="section-copy mt-1">
               Owned records remain available to you unless they are consumed through a one-time share or deleted.
             </p>
           </div>
@@ -640,14 +648,14 @@ export default function UserDashboard() {
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => handleDownload(file.id, "Secure record downloaded.")}
-                    className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                    className="button-dark flex-1"
                     disabled={workingFileId === file.id || deletingFileId === file.id}
                   >
                     {workingFileId === file.id ? "Preparing..." : "Download"}
                   </button>
                   <button
                     onClick={() => handleDeleteFile(file)}
-                    className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                    className="button-danger flex-1"
                     disabled={workingFileId === file.id || deletingFileId === file.id}
                   >
                     {deletingFileId === file.id ? "Deleting..." : "Delete"}
@@ -656,13 +664,13 @@ export default function UserDashboard() {
               </div>
             ))
           ) : (
-            <div className="mobile-data-card text-sm text-slate-500">You have not uploaded any records yet.</div>
+            <div className="empty-state text-sm">You have not uploaded any records yet.</div>
           )}
         </div>
 
-        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell mt-5 hidden md:block">
+          <table className="table-base">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Security</th>
@@ -673,23 +681,23 @@ export default function UserDashboard() {
             </thead>
             <tbody>
               {owned.map((file) => (
-                <tr key={file.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-slate-700">{file.filename}</td>
-                  <td className="px-4 py-3 text-slate-500">{file.security_level}</td>
-                  <td className="px-4 py-3 text-slate-500">{policySummary(file)}</td>
-                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(file.created_at)}</td>
+                <tr key={file.id} className="table-row">
+                  <td className="font-semibold text-slate-700">{file.filename}</td>
+                  <td className="text-slate-500">{file.security_level}</td>
+                  <td className="text-slate-500">{policySummary(file)}</td>
+                  <td className="text-slate-500">{formatTimestamp(file.created_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => handleDownload(file.id, "Secure record downloaded.")}
-                        className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        className="button-pill-dark"
                         disabled={workingFileId === file.id || deletingFileId === file.id}
                       >
                         {workingFileId === file.id ? "Preparing..." : "Download"}
                       </button>
                       <button
                         onClick={() => handleDeleteFile(file)}
-                        className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                        className="button-pill-danger"
                         disabled={workingFileId === file.id || deletingFileId === file.id}
                       >
                         {deletingFileId === file.id ? "Deleting..." : "Delete"}
@@ -700,7 +708,7 @@ export default function UserDashboard() {
               ))}
               {!owned.length ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="table-empty">
                     You have not uploaded any records yet.
                   </td>
                 </tr>

@@ -49,35 +49,33 @@ export default function AuthLogsPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Authentication log</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">Authentication log</p>
+            <h1 className="page-title">
               Review successful and failed sign-in attempts across the platform.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               This view highlights login decisions and the reason attached to each deny event.
             </p>
           </div>
-          <span className="status-pill bg-blue-50 text-blue-700">Login decision feed</span>
+          <span className="hero-chip bg-blue-50 text-blue-700">Login decision feed</span>
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
+      <section className="section-card">
         {error ? (
-          <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {error}
-          </div>
+          <div className="alert-card alert-warning">{error}</div>
         ) : null}
 
         <div className="mt-5 space-y-3 md:hidden">
           {loading ? (
-            <div className="mobile-data-card text-sm text-slate-500">Loading authentication logs...</div>
+            <div className="empty-state text-sm">Loading authentication logs...</div>
           ) : null}
 
           {!loading && !logs.length ? (
-            <div className="mobile-data-card text-sm text-slate-500">No authentication logs are available yet.</div>
+            <div className="empty-state text-sm">No authentication logs are available yet.</div>
           ) : null}
 
           {logs.map((log) => (
@@ -100,9 +98,9 @@ export default function AuthLogsPage() {
           ))}
         </div>
 
-        <div className="mt-5 hidden overflow-hidden rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell mt-5 hidden md:block">
+          <table className="table-base">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Decision</th>
@@ -113,7 +111,7 @@ export default function AuthLogsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={4} className="table-empty">
                     Loading authentication logs...
                   </td>
                 </tr>
@@ -121,20 +119,20 @@ export default function AuthLogsPage() {
 
               {!loading && !logs.length ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={4} className="table-empty">
                     No authentication logs are available yet.
                   </td>
                 </tr>
               ) : null}
 
               {logs.map((log) => (
-                <tr key={log.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 text-slate-500">{log.email || "Unknown"}</td>
+                <tr key={log.id} className="table-row">
+                  <td className="text-slate-500">{log.email || "Unknown"}</td>
                   <td className={`px-4 py-3 font-semibold ${log.decision === "allowed" ? "text-emerald-600" : "text-rose-500"}`}>
                     {log.decision}
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{log.reason || "-"}</td>
-                  <td className="px-4 py-3 text-slate-500">{formatTimestamp(log.created_at)}</td>
+                  <td className="text-slate-500">{log.reason || "-"}</td>
+                  <td className="text-slate-500">{formatTimestamp(log.created_at)}</td>
                 </tr>
               ))}
             </tbody>

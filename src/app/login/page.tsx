@@ -170,7 +170,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-grid px-4 py-4 sm:px-6 sm:py-5">
-      <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-6xl gap-4 lg:grid-cols-[1.04fr_0.96fr]">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-6xl gap-4 lg:grid-cols-[1.02fr_0.98fr]">
         <div className="flex flex-col justify-center rounded-[1.75rem] border border-slate-900/80 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_34%),linear-gradient(180deg,_#08101f_0%,_#0b1528_48%,_#101b31_100%)] p-5 text-white shadow-[0_28px_64px_rgba(8,16,31,0.34)] sm:p-6 lg:p-7">
           <div className="space-y-6">
             <div>
@@ -221,7 +221,7 @@ export default function LoginPage() {
                 />
               </div>
               <div className="mt-3">
-                <p className="text-sm font-medium text-slate-800">Final Year Project</p>
+                <p className="text-sm font-semibold text-slate-800">Final Year Project</p>
                 <p className="mt-1 text-sm leading-5 text-slate-500">
                   Machine learning-enhanced secure health record access platform.
                 </p>
@@ -253,7 +253,7 @@ export default function LoginPage() {
                 <label className="block space-y-2">
                   <span className="text-sm font-medium text-slate-700">Email</span>
                   <input
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    className="control-input"
                     placeholder="Enter your email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -264,17 +264,14 @@ export default function LoginPage() {
                   <span className="text-sm font-medium text-slate-700">Password</span>
                   <input
                     type="password"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    className="control-input"
                     placeholder="Enter your password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                   />
                 </label>
 
-                <button
-                  disabled={loading}
-                  className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
+                <button disabled={loading} className="button-primary w-full">
                   {loading ? "Validating..." : "Enter Secure Platform"}
                 </button>
               </form>
@@ -288,7 +285,7 @@ export default function LoginPage() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-700">6-digit verification code</span>
                     <input
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-input"
                       placeholder="Enter the code from your email"
                       value={mfa.code}
                       onChange={(e) => setMfa({ ...mfa, code: e.target.value })}
@@ -298,7 +295,7 @@ export default function LoginPage() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-slate-700">Backup code</span>
                     <input
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm uppercase focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-input uppercase"
                       placeholder="Enter one of your saved backup codes"
                       value={mfa.backupCode}
                       onChange={(e) => setMfa({ ...mfa, backupCode: e.target.value.toUpperCase() })}
@@ -307,18 +304,14 @@ export default function LoginPage() {
                 )}
 
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
+                  <button type="submit" disabled={loading} className="button-primary flex-1">
                     {loading ? "Checking..." : mfa.useBackupCode ? "Use backup code" : "Verify and sign in"}
                   </button>
                   <button
                     type="button"
                     onClick={handleResendCode}
                     disabled={loading || mfa.useBackupCode}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="button-secondary"
                   >
                     Resend code
                   </button>
@@ -340,13 +333,7 @@ export default function LoginPage() {
             )}
 
             {notice ? (
-              <div
-                className={`mt-4 rounded-2xl px-4 py-3 text-sm leading-5 ${
-                  notice.tone === "error"
-                    ? "border border-rose-100 bg-rose-50 text-rose-700"
-                    : "border border-blue-100 bg-blue-50 text-blue-700"
-                }`}
-              >
+              <div className={`alert-card mt-4 ${notice.tone === "error" ? "alert-error" : "alert-info"}`}>
                 {notice.text}
               </div>
             ) : null}

@@ -226,42 +226,40 @@ export default function UserManagementPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">User management</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">User management</p>
+            <h1 className="page-title">
               Create users, manage departments, and edit trust attributes without losing mobile usability.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               Administrators can change role, department, clearance, account status, and password resets from one
               workspace.
             </p>
           </div>
-          <span className="status-pill bg-blue-50 text-blue-700">Inline admin controls</span>
+          <span className="hero-chip bg-blue-50 text-blue-700">Inline admin controls</span>
         </div>
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="section-card">
+          <div className="section-header">
             <div>
-              <p className="text-lg font-semibold text-slate-900">Department management</p>
-              <p className="mt-1 text-sm text-slate-500">Create departments used by policies and user assignments.</p>
+              <p className="section-title">Department management</p>
+              <p className="section-copy mt-1">Create departments used by policies and user assignments.</p>
             </div>
             <span className="status-pill bg-slate-100 text-slate-600">{departments.length} departments</span>
           </div>
 
           <form onSubmit={createDepartment} className="mt-5 flex flex-col gap-3 sm:flex-row">
             <input
-              className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              className="control-input flex-1"
               placeholder="Create department"
               value={newDepartment}
               onChange={(e) => setNewDepartment(e.target.value)}
             />
-            <button className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200">
-              Add
-            </button>
+            <button className="button-primary">Add</button>
           </form>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -273,38 +271,38 @@ export default function UserManagementPage() {
           </div>
         </section>
 
-        <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="section-card">
+          <div className="section-header">
             <div>
-              <p className="text-lg font-semibold text-slate-900">Create user</p>
-              <p className="mt-1 text-sm text-slate-500">Add a new account with its initial role and clearance.</p>
+              <p className="section-title">Create user</p>
+              <p className="section-copy mt-1">Add a new account with its initial role and clearance.</p>
             </div>
             <span className="status-pill bg-emerald-50 text-emerald-700">Seeded for ABAC</span>
           </div>
 
           <form onSubmit={createUser} className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <input
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              className="control-input"
               placeholder="Email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
             <input
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              className="control-input"
               placeholder="Full name"
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
             />
             <input
               type="password"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              className="control-input"
               placeholder="Password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
             />
 
             <select
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              className="control-select"
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
@@ -316,7 +314,7 @@ export default function UserManagementPage() {
             </select>
 
             <select
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              className="control-select"
               value={form.department}
               onChange={(e) => setForm({ ...form, department: e.target.value })}
             >
@@ -328,7 +326,7 @@ export default function UserManagementPage() {
             </select>
 
             <select
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              className="control-select"
               value={form.clearance}
               onChange={(e) => setForm({ ...form, clearance: Number(e.target.value) })}
             >
@@ -339,18 +337,18 @@ export default function UserManagementPage() {
               ))}
             </select>
 
-            <button className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 md:col-span-2 xl:col-span-3">
+            <button className="button-primary md:col-span-2 xl:col-span-3">
               Create user
             </button>
           </form>
         </section>
       </div>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="section-card">
+        <div className="section-header">
           <div>
-            <p className="text-lg font-semibold text-slate-900">User directory</p>
-            <p className="mt-1 text-sm text-slate-500">Edit user details inline and save changes immediately.</p>
+            <p className="section-title">User directory</p>
+            <p className="section-copy mt-1">Edit user details inline and save changes immediately.</p>
           </div>
           <span className="status-pill bg-slate-100 text-slate-600">{users.length} accounts</span>
         </div>
@@ -387,12 +385,12 @@ export default function UserManagementPage() {
 
                   <div className="mt-4 grid gap-3">
                     <input
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-input"
                       value={d.full_name}
                       onChange={(e) => patchDraft(u.id, { full_name: e.target.value })}
                     />
                     <select
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-select"
                       value={d.role}
                       onChange={(e) => patchDraft(u.id, { role: e.target.value })}
                     >
@@ -403,7 +401,7 @@ export default function UserManagementPage() {
                       ))}
                     </select>
                     <select
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-select"
                       value={d.department}
                       onChange={(e) => patchDraft(u.id, { department: e.target.value })}
                     >
@@ -414,7 +412,7 @@ export default function UserManagementPage() {
                       ))}
                     </select>
                     <select
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-select"
                       value={d.clearance}
                       onChange={(e) => patchDraft(u.id, { clearance: Number(e.target.value) })}
                     >
@@ -426,20 +424,20 @@ export default function UserManagementPage() {
                     </select>
                     <input
                       type="password"
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-input"
                       placeholder="New password"
                       value={d.password}
                       onChange={(e) => patchDraft(u.id, { password: e.target.value })}
                     />
                     <button
                       onClick={() => saveUser(u.id)}
-                      className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200"
+                      className="button-primary"
                     >
                       Save user
                     </button>
                     <button
                       onClick={() => resetMfa(u.id, u.email)}
-                      className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800"
+                      className="button-warning-soft"
                     >
                       Reset MFA
                     </button>
@@ -448,13 +446,13 @@ export default function UserManagementPage() {
               );
             })
           ) : (
-            <div className="mobile-data-card text-sm text-slate-500">No users are available yet.</div>
+            <div className="empty-state text-sm">No users are available yet.</div>
           )}
         </div>
 
-        <div className="mt-5 hidden overflow-x-auto rounded-[1.5rem] border border-slate-100 md:block">
-          <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-400">
+        <div className="table-shell mt-5 hidden overflow-x-auto md:block">
+          <table className="table-base min-w-[980px]">
+            <thead className="table-head">
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Email</th>
@@ -472,10 +470,10 @@ export default function UserManagementPage() {
               {users.map((u) => {
                 const d = drafts[u.id] || toDraft(u);
                 return (
-                  <tr key={u.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3">
-                      <input
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                <tr key={u.id} className="table-row">
+                  <td className="px-4 py-3">
+                    <input
+                        className="control-input"
                         value={d.full_name}
                         onChange={(e) => patchDraft(u.id, { full_name: e.target.value })}
                       />
@@ -483,7 +481,7 @@ export default function UserManagementPage() {
                     <td className="px-4 py-3 text-slate-500">{u.email}</td>
                     <td className="px-4 py-3">
                       <select
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        className="control-select"
                         value={d.role}
                         onChange={(e) => patchDraft(u.id, { role: e.target.value })}
                       >
@@ -496,7 +494,7 @@ export default function UserManagementPage() {
                     </td>
                     <td className="px-4 py-3">
                       <select
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        className="control-select"
                         value={d.department}
                         onChange={(e) => patchDraft(u.id, { department: e.target.value })}
                       >
@@ -509,7 +507,7 @@ export default function UserManagementPage() {
                     </td>
                     <td className="px-4 py-3">
                       <select
-                        className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        className="control-select w-24"
                         value={d.clearance}
                         onChange={(e) => patchDraft(u.id, { clearance: Number(e.target.value) })}
                       >
@@ -542,7 +540,7 @@ export default function UserManagementPage() {
                     <td className="px-4 py-3">
                       <input
                         type="password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        className="control-input"
                         placeholder="New password"
                         value={d.password}
                         onChange={(e) => patchDraft(u.id, { password: e.target.value })}
@@ -551,7 +549,7 @@ export default function UserManagementPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => resetMfa(u.id, u.email)}
-                        className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"
+                        className="button-pill-warning"
                       >
                         Reset MFA
                       </button>
@@ -559,7 +557,7 @@ export default function UserManagementPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => saveUser(u.id)}
-                        className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-200"
+                        className="button-primary"
                       >
                         Save
                       </button>
@@ -573,9 +571,7 @@ export default function UserManagementPage() {
       </section>
 
       {message ? (
-        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          {message}
-        </div>
+        <div className="alert-card alert-info">{message}</div>
       ) : null}
     </AppShell>
   );

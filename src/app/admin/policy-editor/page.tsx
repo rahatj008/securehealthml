@@ -175,40 +175,38 @@ export default function PolicyEditorPage() {
       onLogout={logout}
       nav={adminNav}
     >
-      <section className="surface-card-strong rounded-[2rem] p-5 sm:p-6">
+      <section className="page-hero">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600">Policy editor</p>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            <p className="page-eyebrow text-blue-600">Policy editor</p>
+            <h1 className="page-title">
               Tune file-level ABAC rules so the right teams can access the right records.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="page-copy">
               Each record can be updated with allowed roles, approved departments, and the minimum clearance required.
             </p>
           </div>
-          <span className="status-pill bg-blue-50 text-blue-700">Role + department + clearance</span>
+          <span className="hero-chip bg-blue-50 text-blue-700">Role + department + clearance</span>
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="section-card">
+        <div className="section-header">
           <div>
-            <p className="text-lg font-semibold text-slate-900">Department management</p>
-            <p className="mt-1 text-sm text-slate-500">Create departments that can be attached to file policies.</p>
+            <p className="section-title">Department management</p>
+            <p className="section-copy mt-1">Create departments that can be attached to file policies.</p>
           </div>
           <span className="status-pill bg-slate-100 text-slate-600">{departments.length} departments</span>
         </div>
 
         <form onSubmit={createDepartment} className="mt-5 flex flex-col gap-3 sm:flex-row">
           <input
-            className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="control-input flex-1"
             placeholder="Create department"
             value={newDepartment}
             onChange={(e) => setNewDepartment(e.target.value)}
           />
-          <button className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200">
-            Add
-          </button>
+          <button className="button-primary">Add</button>
         </form>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -220,23 +218,23 @@ export default function PolicyEditorPage() {
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.8rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="section-card">
+        <div className="section-header">
           <div>
-            <p className="text-lg font-semibold text-slate-900">ABAC policy editor</p>
-            <p className="mt-1 text-sm text-slate-500">Define access for each uploaded file individually.</p>
+            <p className="section-title">ABAC policy editor</p>
+            <p className="section-copy mt-1">Define access for each uploaded file individually.</p>
           </div>
           <span className="status-pill bg-emerald-50 text-emerald-700">{rows.length} tracked files</span>
         </div>
 
         {!rows.length ? (
-          <div className="mt-6 rounded-[1.4rem] border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <div className="alert-card alert-warning mt-6">
             No files found. Upload at least one file to configure file-level ABAC policies.
           </div>
         ) : (
           <div className="mt-6 space-y-4">
             {rows.map((row, idx) => (
-              <div key={row.id} className="rounded-[1.5rem] border border-slate-100 bg-white px-4 py-4 sm:px-5 sm:py-5">
+              <div key={row.id} className="rounded-[1.5rem] border border-slate-100 bg-white px-4 py-4 shadow-[0_8px_24px_rgba(15,29,43,0.04)] sm:px-5 sm:py-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-base font-semibold text-slate-900">{row.filename}</p>
@@ -246,7 +244,7 @@ export default function PolicyEditorPage() {
                   </div>
                   <button
                     onClick={() => updatePolicy(row)}
-                    className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200"
+                    className="button-primary"
                   >
                     Save policy
                   </button>
@@ -298,7 +296,7 @@ export default function PolicyEditorPage() {
                   <div>
                     <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Min clearance</p>
                     <select
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className="control-select"
                       value={row.policy.minClearance}
                       onChange={(e) => {
                         const minClearance = Number(e.target.value);
@@ -324,9 +322,7 @@ export default function PolicyEditorPage() {
       </section>
 
       {message ? (
-        <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          {message}
-        </div>
+        <div className="alert-card alert-info">{message}</div>
       ) : null}
     </AppShell>
   );

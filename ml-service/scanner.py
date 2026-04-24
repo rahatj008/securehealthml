@@ -17,10 +17,11 @@ import pandas as pd
 import yara
 
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL_PATH = ROOT_DIR / "ai_model_training" / "artifacts" / "pdf_malware_model.joblib"
-DEFAULT_FEEDBACK_PATH = ROOT_DIR / "ml-service" / "data" / "feedback.jsonl"
-DEFAULT_YARA_RULES_PATH = ROOT_DIR / "ml-service" / "rules" / "uploads.yar"
+MODULE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = MODULE_DIR.parent
+DEFAULT_MODEL_PATH = PROJECT_ROOT / "ai_model_training" / "artifacts" / "pdf_malware_model.joblib"
+DEFAULT_FEEDBACK_PATH = MODULE_DIR / "data" / "feedback.jsonl"
+DEFAULT_YARA_RULES_PATH = MODULE_DIR / "rules" / "uploads.yar"
 
 PDF_MIME_TYPES = {"application/pdf"}
 DOCX_MIME_TYPES = {"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
