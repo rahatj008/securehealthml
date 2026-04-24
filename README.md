@@ -2,6 +2,8 @@
 
 SecurHealth ML is a secure health-record sharing app built as a single Next.js project with an integrated API layer, PostgreSQL, and a separate malware-scanning service.
 
+For presentation and viva preparation, see [PRESENTATION_QA.md](./PRESENTATION_QA.md).
+
 The current project supports:
 
 - JWT authentication with bcrypt password hashing

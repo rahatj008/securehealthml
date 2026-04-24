@@ -74,6 +74,72 @@ const ALLOWED_UPLOAD_TYPES = [
     mimeTypes: ["image/jpeg", "image/jpg"],
   },
 ];
+const ANOMALY_RULES = {
+  newLoginIp: {
+    type: "new_login_ip",
+    context: "login",
+    reason: "Login succeeded from a new IP for an established account.",
+    score: 0.55,
+    threshold: 2,
+    windowDays: 30,
+  },
+  failedPasswordBurstUser: {
+    type: "failed_password_burst_user",
+    context: "login",
+    reason: "Repeated wrong password attempts detected for one account.",
+    score: 0.75,
+    threshold: 5,
+    windowMinutes: 15,
+  },
+  passwordSprayIp: {
+    type: "password_spray_ip",
+    context: "login",
+    reason: "One IP is failing against multiple accounts in a short window.",
+    score: 0.85,
+    threshold: 3,
+    windowMinutes: 15,
+  },
+  successAfterFailures: {
+    type: "success_after_failures",
+    context: "login",
+    reason: "A login succeeded shortly after multiple failed attempts.",
+    score: 0.8,
+    threshold: 3,
+    windowMinutes: 15,
+  },
+  abacDenyBurst: {
+    type: "abac_deny_burst",
+    context: "download",
+    reason: "Repeated ABAC denials detected for file access.",
+    score: 0.65,
+    threshold: 3,
+    windowMinutes: 10,
+  },
+  downloadBurst: {
+    type: "download_burst",
+    context: "download",
+    reason: "A user downloaded many files in a short period.",
+    score: 0.7,
+    threshold: 5,
+    windowMinutes: 10,
+  },
+  malwareUploadRepeat: {
+    type: "malware_upload_repeat",
+    context: "upload",
+    reason: "Multiple malware-blocked uploads were attempted in a short period.",
+    score: 0.9,
+    threshold: 2,
+    windowMinutes: 15,
+  },
+  shareCreationBurst: {
+    type: "share_creation_burst",
+    context: "share",
+    reason: "Many one-time shares were created in a short period.",
+    score: 0.65,
+    threshold: 5,
+    windowMinutes: 10,
+  },
+};
 
 let bootstrapPromise;
 
@@ -254,6 +320,7 @@ async function ensureSchema() {
       reason TEXT,
       ip_address TEXT,
       user_agent TEXT,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at TIMESTAMP DEFAULT NOW()
     );
 
@@ -332,6 +399,7 @@ async function ensureSchema() {
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP;
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP;
     ALTER TABLE shares ADD COLUMN IF NOT EXISTS consumed_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE malware_events ADD COLUMN IF NOT EXISTS filename TEXT;
     ALTER TABLE malware_events ADD COLUMN IF NOT EXISTS mime_type TEXT;
     ALTER TABLE malware_events ADD COLUMN IF NOT EXISTS context TEXT;
@@ -408,12 +476,14 @@ async function authorizeRequest(request, role) {
   }
 }
 
-async function logAccess({ userId, fileId, action, decision, reason, request }) {
-  await query(
-    `INSERT INTO access_logs (user_id, file_id, action, decision, reason, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [userId, fileId, action, decision, reason, getRequestIp(request), getUserAgent(request)]
+async function logAccess({ userId, fileId, action, decision, reason, request, metadata = {} }) {
+  const result = await query(
+    `INSERT INTO access_logs (user_id, file_id, action, decision, reason, ip_address, user_agent, metadata)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [userId, fileId, action, decision, reason, getRequestIp(request), getUserAgent(request), metadata || {}]
   );
+  return result.rows[0] || null;
 }
 
 async function logMalware({ userId, fileId, filename, mimeType, context, score, reasons }) {
@@ -423,6 +493,420 @@ async function logMalware({ userId, fileId, filename, mimeType, context, score, 
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [userId, fileId, filename || null, mimeType || null, context || null, score, normalizedReasons]
   );
+}
+
+function normalizeEmailValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized || null;
+}
+
+function isKnownIp(ip) {
+  return Boolean(ip && ip !== "unknown");
+}
+
+function buildAnomalyFeatures({ type, context, reason, request, observedCount, threshold, extra = {} }) {
+  return {
+    type,
+    context,
+    reason,
+    ip: getRequestIp(request),
+    user_agent: getUserAgent(request),
+    observed_count: observedCount,
+    threshold,
+    ...extra,
+  };
+}
+
+async function recentAnomalyExists({ type, context, minutes, userId = null, fileId = null, ip = null }) {
+  const conditions = ["features->>'type' = $1", "features->>'context' = $2"];
+  const params = [type, context, minutes];
+
+  if (userId) {
+    conditions.push(`user_id = $${params.length + 1}`);
+    params.push(userId);
+  }
+
+  if (fileId) {
+    conditions.push(`file_id = $${params.length + 1}`);
+    params.push(fileId);
+  }
+
+  if (ip) {
+    conditions.push(`features->>'ip' = $${params.length + 1}`);
+    params.push(ip);
+  }
+
+  const result = await query(
+    `SELECT 1
+     FROM anomaly_events
+     WHERE ${conditions.join(" AND ")}
+       AND created_at >= NOW() - ($3::text || ' minutes')::interval
+     LIMIT 1`,
+    params
+  );
+  return Boolean(result.rows.length);
+}
+
+async function recordAnomalyEvent({
+  userId,
+  fileId = null,
+  type,
+  context,
+  reason,
+  score,
+  observedCount,
+  threshold,
+  request,
+  dedupeMinutes = 0,
+  extra = {},
+}) {
+  const ip = getRequestIp(request);
+  if (
+    dedupeMinutes > 0 &&
+    (await recentAnomalyExists({
+      type,
+      context,
+      minutes: dedupeMinutes,
+      userId: userId || null,
+      fileId,
+      ip: isKnownIp(ip) ? ip : null,
+    }))
+  ) {
+    return null;
+  }
+
+  const features = buildAnomalyFeatures({
+    type,
+    context,
+    reason,
+    request,
+    observedCount,
+    threshold,
+    extra,
+  });
+
+  const result = await query(
+    `INSERT INTO anomaly_events (user_id, file_id, score, features)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [userId || null, fileId || null, score, features]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function evaluateLoginDeniedAnomalies({ request, user, email }) {
+  const ip = getRequestIp(request);
+  const targetEmail = normalizeEmailValue(email);
+
+  if (user?.id) {
+    const failedBurst = await query(
+      `SELECT COUNT(*) AS count
+       FROM access_logs
+       WHERE user_id = $1
+         AND action = 'login'
+         AND decision = 'denied'
+         AND created_at >= NOW() - INTERVAL '15 minute'`,
+      [user.id]
+    );
+    const failedCount = Number(failedBurst.rows[0]?.count || 0);
+    if (failedCount >= ANOMALY_RULES.failedPasswordBurstUser.threshold) {
+      await recordAnomalyEvent({
+        userId: user.id,
+        type: ANOMALY_RULES.failedPasswordBurstUser.type,
+        context: ANOMALY_RULES.failedPasswordBurstUser.context,
+        reason: ANOMALY_RULES.failedPasswordBurstUser.reason,
+        score: ANOMALY_RULES.failedPasswordBurstUser.score,
+        observedCount: failedCount,
+        threshold: ANOMALY_RULES.failedPasswordBurstUser.threshold,
+        request,
+        dedupeMinutes: ANOMALY_RULES.failedPasswordBurstUser.windowMinutes,
+        extra: {
+          action: "login",
+          decision: "denied",
+          target_email: targetEmail,
+          window_minutes: ANOMALY_RULES.failedPasswordBurstUser.windowMinutes,
+        },
+      });
+    }
+  }
+
+  if (!isKnownIp(ip)) {
+    return;
+  }
+
+  const sprayResult = await query(
+    `SELECT COUNT(DISTINCT LOWER(COALESCE(access_logs.metadata->>'target_email', users.email, access_logs.user_id::text))) AS count
+     FROM access_logs
+     LEFT JOIN users ON users.id = access_logs.user_id
+     WHERE access_logs.action = 'login'
+       AND access_logs.decision = 'denied'
+       AND access_logs.ip_address = $1
+       AND access_logs.created_at >= NOW() - INTERVAL '15 minute'
+       AND COALESCE(access_logs.metadata->>'target_email', users.email, access_logs.user_id::text) IS NOT NULL`,
+    [ip]
+  );
+  const distinctAccounts = Number(sprayResult.rows[0]?.count || 0);
+
+  if (distinctAccounts >= ANOMALY_RULES.passwordSprayIp.threshold) {
+    await recordAnomalyEvent({
+      userId: null,
+      type: ANOMALY_RULES.passwordSprayIp.type,
+      context: ANOMALY_RULES.passwordSprayIp.context,
+      reason: ANOMALY_RULES.passwordSprayIp.reason,
+      score: ANOMALY_RULES.passwordSprayIp.score,
+      observedCount: distinctAccounts,
+      threshold: ANOMALY_RULES.passwordSprayIp.threshold,
+      request,
+      dedupeMinutes: ANOMALY_RULES.passwordSprayIp.windowMinutes,
+      extra: {
+        action: "login",
+        decision: "denied",
+        target_email: targetEmail,
+        window_minutes: ANOMALY_RULES.passwordSprayIp.windowMinutes,
+      },
+    });
+  }
+}
+
+async function evaluateLoginSuccessAnomalies({ request, user, accessLog, email }) {
+  if (!user?.id || !accessLog?.id) {
+    return;
+  }
+
+  const ip = getRequestIp(request);
+  const targetEmail = normalizeEmailValue(email || user.email);
+
+  if (isKnownIp(ip)) {
+    const priorSuccessCountResult = await query(
+      `SELECT COUNT(*) AS count
+       FROM access_logs
+       WHERE user_id = $1
+         AND action = 'login'
+         AND decision = 'allowed'
+         AND created_at >= NOW() - INTERVAL '30 day'
+         AND id <> $2`,
+      [user.id, accessLog.id]
+    );
+    const priorSuccessCount = Number(priorSuccessCountResult.rows[0]?.count || 0);
+
+    if (priorSuccessCount >= ANOMALY_RULES.newLoginIp.threshold) {
+      const knownIpResult = await query(
+        `SELECT 1
+         FROM access_logs
+         WHERE user_id = $1
+           AND action = 'login'
+           AND decision = 'allowed'
+           AND ip_address = $2
+           AND created_at >= NOW() - INTERVAL '30 day'
+           AND id <> $3
+         LIMIT 1`,
+        [user.id, ip, accessLog.id]
+      );
+
+      if (!knownIpResult.rows.length) {
+        await recordAnomalyEvent({
+          userId: user.id,
+          type: ANOMALY_RULES.newLoginIp.type,
+          context: ANOMALY_RULES.newLoginIp.context,
+          reason: ANOMALY_RULES.newLoginIp.reason,
+          score: ANOMALY_RULES.newLoginIp.score,
+          observedCount: priorSuccessCount,
+          threshold: ANOMALY_RULES.newLoginIp.threshold,
+          request,
+          dedupeMinutes: ANOMALY_RULES.newLoginIp.windowDays * 24 * 60,
+          extra: {
+            action: "login",
+            decision: "allowed",
+            target_email: targetEmail,
+            window_days: ANOMALY_RULES.newLoginIp.windowDays,
+          },
+        });
+      }
+    }
+  }
+
+  const recentFailedResult = await query(
+    `SELECT COUNT(*) AS count
+     FROM access_logs
+     WHERE user_id = $1
+       AND action = 'login'
+       AND decision = 'denied'
+       AND created_at >= NOW() - INTERVAL '15 minute'`,
+    [user.id]
+  );
+  const recentFailedCount = Number(recentFailedResult.rows[0]?.count || 0);
+
+  if (recentFailedCount >= ANOMALY_RULES.successAfterFailures.threshold) {
+    await recordAnomalyEvent({
+      userId: user.id,
+      type: ANOMALY_RULES.successAfterFailures.type,
+      context: ANOMALY_RULES.successAfterFailures.context,
+      reason: ANOMALY_RULES.successAfterFailures.reason,
+      score: ANOMALY_RULES.successAfterFailures.score,
+      observedCount: recentFailedCount,
+      threshold: ANOMALY_RULES.successAfterFailures.threshold,
+      request,
+      dedupeMinutes: ANOMALY_RULES.successAfterFailures.windowMinutes,
+      extra: {
+        action: "login",
+        decision: "allowed",
+        target_email: targetEmail,
+        window_minutes: ANOMALY_RULES.successAfterFailures.windowMinutes,
+      },
+    });
+  }
+}
+
+async function evaluateAbacDeniedAnomalies({ request, userId, fileId, action }) {
+  if (!userId) {
+    return;
+  }
+
+  const result = await query(
+    `SELECT COUNT(*) AS count
+     FROM access_logs
+     WHERE user_id = $1
+       AND action = $2
+       AND decision = 'denied'
+       AND reason = 'ABAC policy denied'
+       AND created_at >= NOW() - INTERVAL '10 minute'`,
+    [userId, action]
+  );
+  const deniedCount = Number(result.rows[0]?.count || 0);
+
+  if (deniedCount >= ANOMALY_RULES.abacDenyBurst.threshold) {
+    await recordAnomalyEvent({
+      userId,
+      fileId,
+      type: ANOMALY_RULES.abacDenyBurst.type,
+      context: ANOMALY_RULES.abacDenyBurst.context,
+      reason: ANOMALY_RULES.abacDenyBurst.reason,
+      score: ANOMALY_RULES.abacDenyBurst.score,
+      observedCount: deniedCount,
+      threshold: ANOMALY_RULES.abacDenyBurst.threshold,
+      request,
+      dedupeMinutes: ANOMALY_RULES.abacDenyBurst.windowMinutes,
+      extra: {
+        action,
+        decision: "denied",
+        window_minutes: ANOMALY_RULES.abacDenyBurst.windowMinutes,
+      },
+    });
+  }
+}
+
+async function evaluateDownloadBurstAnomalies({ request, userId, fileId, securityLevel }) {
+  if (!userId) {
+    return;
+  }
+
+  const result = await query(
+    `SELECT COUNT(*) AS count
+     FROM access_logs
+     WHERE user_id = $1
+       AND action = 'download'
+       AND decision = 'allowed'
+       AND created_at >= NOW() - INTERVAL '10 minute'`,
+    [userId]
+  );
+  const downloadCount = Number(result.rows[0]?.count || 0);
+
+  if (downloadCount >= ANOMALY_RULES.downloadBurst.threshold) {
+    await recordAnomalyEvent({
+      userId,
+      fileId,
+      type: ANOMALY_RULES.downloadBurst.type,
+      context: ANOMALY_RULES.downloadBurst.context,
+      reason: ANOMALY_RULES.downloadBurst.reason,
+      score: ANOMALY_RULES.downloadBurst.score,
+      observedCount: downloadCount,
+      threshold: ANOMALY_RULES.downloadBurst.threshold,
+      request,
+      dedupeMinutes: ANOMALY_RULES.downloadBurst.windowMinutes,
+      extra: {
+        action: "download",
+        decision: "allowed",
+        security_level: securityLevel || null,
+        window_minutes: ANOMALY_RULES.downloadBurst.windowMinutes,
+      },
+    });
+  }
+}
+
+async function evaluateMalwareUploadRepeatAnomalies({ request, userId, filename, mimeType }) {
+  if (!userId) {
+    return;
+  }
+
+  const result = await query(
+    `SELECT COUNT(*) AS count
+     FROM malware_events
+     WHERE user_id = $1
+       AND context = 'file_upload'
+       AND created_at >= NOW() - INTERVAL '15 minute'`,
+    [userId]
+  );
+  const malwareCount = Number(result.rows[0]?.count || 0);
+
+  if (malwareCount >= ANOMALY_RULES.malwareUploadRepeat.threshold) {
+    await recordAnomalyEvent({
+      userId,
+      type: ANOMALY_RULES.malwareUploadRepeat.type,
+      context: ANOMALY_RULES.malwareUploadRepeat.context,
+      reason: ANOMALY_RULES.malwareUploadRepeat.reason,
+      score: ANOMALY_RULES.malwareUploadRepeat.score,
+      observedCount: malwareCount,
+      threshold: ANOMALY_RULES.malwareUploadRepeat.threshold,
+      request,
+      dedupeMinutes: ANOMALY_RULES.malwareUploadRepeat.windowMinutes,
+      extra: {
+        action: "upload",
+        decision: "denied",
+        filename: filename || null,
+        mime_type: mimeType || null,
+        window_minutes: ANOMALY_RULES.malwareUploadRepeat.windowMinutes,
+      },
+    });
+  }
+}
+
+async function evaluateShareCreationBurstAnomalies({ request, userId, fileId, recipientEmail }) {
+  if (!userId) {
+    return;
+  }
+
+  const result = await query(
+    `SELECT COUNT(*) AS count
+     FROM access_logs
+     WHERE user_id = $1
+       AND action = 'share'
+       AND decision = 'allowed'
+       AND created_at >= NOW() - INTERVAL '10 minute'`,
+    [userId]
+  );
+  const shareCount = Number(result.rows[0]?.count || 0);
+
+  if (shareCount >= ANOMALY_RULES.shareCreationBurst.threshold) {
+    await recordAnomalyEvent({
+      userId,
+      fileId,
+      type: ANOMALY_RULES.shareCreationBurst.type,
+      context: ANOMALY_RULES.shareCreationBurst.context,
+      reason: ANOMALY_RULES.shareCreationBurst.reason,
+      score: ANOMALY_RULES.shareCreationBurst.score,
+      observedCount: shareCount,
+      threshold: ANOMALY_RULES.shareCreationBurst.threshold,
+      request,
+      dedupeMinutes: ANOMALY_RULES.shareCreationBurst.windowMinutes,
+      extra: {
+        action: "share",
+        decision: "allowed",
+        recipient_email: normalizeEmailValue(recipientEmail),
+        window_minutes: ANOMALY_RULES.shareCreationBurst.windowMinutes,
+      },
+    });
+  }
 }
 
 function buildBehaviorFeatures({ request, user, action, failedCount = 0 }) {
@@ -879,6 +1363,8 @@ async function handleLogin(request) {
       return json({ error: "Email and password required" }, { status: 400 });
     }
 
+    const normalizedEmail = normalizeEmailValue(email);
+
     const user = await getUserByEmailWithSecrets(email);
 
     const failedCountResult = await query(
@@ -918,7 +1404,11 @@ async function handleLogin(request) {
         decision: "denied",
         reason: user?.is_active === false ? "Inactive account" : "Invalid credentials",
         request,
+        metadata: {
+          target_email: normalizedEmail,
+        },
       });
+      await evaluateLoginDeniedAnomalies({ request, user, email: normalizedEmail });
       return json({ error: "Invalid credentials" }, { status: 401 });
     }
 
@@ -931,7 +1421,11 @@ async function handleLogin(request) {
         decision: "denied",
         reason: "Invalid credentials",
         request,
+        metadata: {
+          target_email: normalizedEmail,
+        },
       });
+      await evaluateLoginDeniedAnomalies({ request, user, email: normalizedEmail });
       return json({ error: "Invalid credentials" }, { status: 401 });
     }
 
@@ -948,6 +1442,9 @@ async function handleLogin(request) {
         decision: "denied",
         reason: "Auth risk detected by ML",
         request,
+        metadata: {
+          target_email: normalizedEmail,
+        },
       });
       return json({ error: "Suspicious authentication activity detected" }, { status: 403 });
     }
@@ -967,6 +1464,9 @@ async function handleLogin(request) {
           decision: "pending",
           reason: "MFA verification required",
           request,
+          metadata: {
+            target_email: normalizedEmail,
+          },
         });
 
         return json({
@@ -983,6 +1483,9 @@ async function handleLogin(request) {
           decision: "denied",
           reason: "MFA delivery unavailable",
           request,
+          metadata: {
+            target_email: normalizedEmail,
+          },
         });
         return json(
           { error: error?.message || "Unable to deliver the verification code right now." },
@@ -991,13 +1494,22 @@ async function handleLogin(request) {
       }
     }
 
-    await logAccess({
+    const accessLog = await logAccess({
       userId: user.id,
       fileId: null,
       action: "login",
       decision: "allowed",
       reason: "Authenticated",
       request,
+      metadata: {
+        target_email: normalizedEmail,
+      },
+    });
+    await evaluateLoginSuccessAnomalies({
+      request,
+      user,
+      accessLog,
+      email: normalizedEmail,
     });
 
     return json(createLoginSuccessResponse(user));
@@ -1032,13 +1544,22 @@ async function handleLoginMfaVerify(request) {
       return json({ error: "MFA is no longer enabled for this account." }, { status: 409 });
     }
 
-    await logAccess({
+    const accessLog = await logAccess({
       userId: user.id,
       fileId: null,
       action: "login",
       decision: "allowed",
       reason: "Authenticated with MFA",
       request,
+      metadata: {
+        target_email: normalizeEmailValue(user.email),
+      },
+    });
+    await evaluateLoginSuccessAnomalies({
+      request,
+      user,
+      accessLog,
+      email: user.email,
     });
 
     return json(createLoginSuccessResponse(user));
@@ -1086,18 +1607,30 @@ async function handleLoginMfaBackup(request) {
         decision: "denied",
         reason: "Invalid MFA backup code",
         request,
+        metadata: {
+          target_email: normalizeEmailValue(email),
+        },
       });
       return json({ error: "Invalid backup code" }, { status: 401 });
     }
 
     await consumeLoginChallenges(user.id);
-    await logAccess({
+    const accessLog = await logAccess({
       userId: user.id,
       fileId: null,
       action: "login",
       decision: "allowed",
       reason: "Authenticated with MFA backup code",
       request,
+      metadata: {
+        target_email: normalizeEmailValue(email),
+      },
+    });
+    await evaluateLoginSuccessAnomalies({
+      request,
+      user,
+      accessLog,
+      email,
     });
 
     return json(createLoginSuccessResponse(user));
@@ -1407,6 +1940,17 @@ async function handleUpload(request, currentUser) {
         decision: "denied",
         reason: "Malware detected by ML",
         request,
+        metadata: {
+          filename: file.name,
+          mime_type: file.type || "application/octet-stream",
+          security_level: securityLevel,
+        },
+      });
+      await evaluateMalwareUploadRepeatAnomalies({
+        request,
+        userId: currentUser.sub,
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
       });
       return json(
         {
@@ -1462,6 +2006,11 @@ async function handleUpload(request, currentUser) {
       decision: "allowed",
       reason: "Upload completed",
       request,
+      metadata: {
+        filename: saved.filename,
+        mime_type: saved.mime_type,
+        security_level: saved.security_level,
+      },
     });
 
     try {
@@ -1508,7 +2057,19 @@ async function handleDownload(request, currentUser, fileId) {
           decision: "denied",
           reason: policyCheck.reason,
           request,
+          metadata: {
+            filename: file.filename,
+            security_level: file.security_level,
+          },
         });
+        if (policyCheck.reason === "ABAC policy denied") {
+          await evaluateAbacDeniedAnomalies({
+            request,
+            userId: currentUser.sub,
+            fileId: file.id,
+            action: "download",
+          });
+        }
         return json({ error: "ABAC policy denied" }, { status: 403 });
       }
     }
@@ -1565,6 +2126,17 @@ async function handleDownload(request, currentUser, fileId) {
       decision: "allowed",
       reason: shouldConsumeShare ? "One-time secure access granted" : "Secure download granted",
       request,
+      metadata: {
+        filename: file.filename,
+        security_level: file.security_level,
+        access_mode: shouldConsumeShare ? "one_time_share" : "policy_or_owner",
+      },
+    });
+    await evaluateDownloadBurstAnomalies({
+      request,
+      userId: currentUser.sub,
+      fileId: file.id,
+      securityLevel: file.security_level,
     });
 
     try {
@@ -1897,6 +2469,17 @@ async function handleApiRequestInternal(request, path) {
         decision: "allowed",
         reason: `Shared with ${recipient.email}`,
         request,
+        metadata: {
+          filename: file.filename,
+          recipient_email: normalizeEmailValue(recipient.email),
+          share_mode: "one_time",
+        },
+      });
+      await evaluateShareCreationBurstAnomalies({
+        request,
+        userId: auth.user.sub,
+        fileId,
+        recipientEmail: recipient.email,
       });
 
       return json({ share: shareResult.rows[0] });
@@ -2325,7 +2908,12 @@ async function handleApiRequestInternal(request, path) {
     if (method === "GET" && path.length === 3 && segment1 === "logs" && segment2 === "anomalies") {
       try {
         const anomaly = await query(
-          `SELECT anomaly_events.id, anomaly_events.created_at, anomaly_events.score, users.email, files.filename
+          `SELECT anomaly_events.id,
+                  anomaly_events.created_at,
+                  anomaly_events.score,
+                  anomaly_events.features,
+                  users.email,
+                  files.filename
            FROM anomaly_events
            LEFT JOIN users ON users.id = anomaly_events.user_id
            LEFT JOIN files ON files.id = anomaly_events.file_id
